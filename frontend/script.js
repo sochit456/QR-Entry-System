@@ -481,7 +481,6 @@ function renderStudents(students, activeFilter) {
                             <a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener">
                                 <img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}">
                             </a>
-                            <span class="qr-contact">${escapeHtml(student.contact)}</span>
                         </div>
                     </td>
                     <td>${escapeHtml(formatDate(student.created_at))}</td>
