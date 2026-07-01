@@ -683,8 +683,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadConfig();
     enableSessionLockButtons();
 
-    if (page === "registration") protectPage(initRegistrationPage);
-    if (page === "scanner") protectPage(initScannerPage);
-    if (page === "admin") protectPage(initAdminPage);
-    if (page === "settings") protectPage(() => {});
+    if (page === "registration") {
+        protectPage(initRegistrationPage);
+    } else if (page === "scanner") {
+        protectPage(initScannerPage);
+    } else if (page === "admin") {
+        protectPage(initAdminPage);
+    } else if (document.getElementById("loginOverlay") && document.getElementById("mainContent")) {
+        // Any other protected page (e.g. settings) just needs the shared
+        // auth gate; it has no page-specific init logic of its own.
+        protectPage(() => {});
+    }
 });
