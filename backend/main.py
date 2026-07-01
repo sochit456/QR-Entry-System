@@ -97,6 +97,11 @@ def serve_admin():
     return FileResponse(BASE_DIR / "frontend" / "admin.html")
 
 
+@app.get("/settings", include_in_schema=False)
+def serve_settings():
+    return FileResponse(BASE_DIR / "frontend" / "settings.html")
+
+
 @app.get("/health")
 @app.head("/health")
 def health_check():
