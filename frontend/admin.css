@@ -2,6 +2,10 @@
    1. Layout rhythm & visual hierarchy
    --------------------------------------------------------------------- */
 
+body.admin-page {
+    overflow-x: hidden;
+}
+
 body.admin-page .dashboard {
     gap: 22px;
 }
@@ -18,7 +22,7 @@ body.admin-page .hero-copy {
 }
 
 /* ---------------------------------------------------------------------
-   2. Stat cards — clearer hierarchy, color-coded accents, no icon deps
+   2. Stat cards — taller, vertically-centered content, color-coded accents
    --------------------------------------------------------------------- */
 
 body.admin-page .stats-row {
@@ -28,8 +32,12 @@ body.admin-page .stats-row {
 body.admin-page .stats-row .stat-card {
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     min-width: 160px;
-    padding: 20px 22px;
+    min-height: 172px;
+    padding: 28px 24px;
     border-radius: 20px;
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
@@ -72,6 +80,7 @@ body.admin-page .stats-row .stat-card:nth-child(3) span::before { content: "⏳"
 
 body.admin-page .stats-row .stat-card strong {
     font-size: clamp(1.9rem, 3.2vw, 2.6rem);
+    margin: 6px 0;
 }
 
 body.admin-page .stats-row .stat-card p {
@@ -95,8 +104,14 @@ body.admin-page .panel-actions label {
     white-space: nowrap;
 }
 
+/* Search by Roll Number — compact height matching the font size, text
+   vertically centered via line-height instead of oversized padding. */
 body.admin-page .dashboard-toolbar--compact #searchRoll {
     min-width: 200px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 16px;
+    line-height: 44px;
 }
 
 body.admin-page .filter-chip {
@@ -140,16 +155,46 @@ body.admin-page .status-badge {
     letter-spacing: 0.04em;
 }
 
-/* ---------------------------------------------------------------------
-   5. Responsive breakpoints — 768 / 414 / 390 / 375 / 320
-   Table rule of thumb across all mobile widths.
-   --------------------------------------------------------------------- */
+/* =========================================================================
+   5. RESPONSIVE TIERS
+   Table rule of thumb on every tier below desktop: the table keeps its
+   natural column widths (no compression) and scrolls horizontally inside
+   .table-wrap only. The page/body itself never scrolls sideways.
+   ========================================================================= */
 
-@media (max-width: 768px) {
-    body.admin-page {
-        overflow-x: hidden;
+/* ---------------------------------------------------------------------
+   Small Laptop — max-width: 992px
+   Subtle tightening only; layout shape stays close to desktop.
+   --------------------------------------------------------------------- */
+@media (max-width: 992px) {
+    body.admin-page .page-shell--wide {
+        padding-top: 20px;
     }
 
+    body.admin-page .hero h1 {
+        font-size: clamp(1.9rem, 4vw, 2.6rem);
+    }
+
+    body.admin-page .stats-row .stat-card {
+        min-height: 156px;
+        padding: 22px 20px;
+    }
+
+    body.admin-page .controls-panel {
+        padding: 22px;
+    }
+
+    body.admin-page .dashboard-toolbar--compact #searchRoll {
+        min-width: 220px;
+        flex: 1 1 220px;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Tablet — max-width: 768px (also covers large phones)
+   Stacks the nav, controls, and forces the table into scroll mode.
+   --------------------------------------------------------------------- */
+@media (max-width: 768px) {
     body.admin-page .page-shell--wide {
         padding-top: 16px;
         padding-bottom: 28px;
@@ -158,6 +203,16 @@ body.admin-page .status-badge {
     body.admin-page .hero--split {
         gap: 14px;
         margin-bottom: 20px;
+        text-align: center;
+    }
+
+    body.admin-page .hero-copy-block {
+        margin: 0 auto;
+    }
+
+    body.admin-page .hero-copy {
+        margin-left: auto;
+        margin-right: auto;
     }
 
     body.admin-page .hero h1 {
@@ -168,12 +223,13 @@ body.admin-page .status-badge {
         font-size: 0.92rem;
     }
 
-    /* Admin top navigation: two balanced rows instead of a squeezed line */
+    /* Admin top navigation: two balanced, centered rows */
     body.admin-page .nav-chips--actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
         width: 100%;
+        justify-items: stretch;
     }
 
     body.admin-page .nav-chips--actions .nav-chip {
@@ -181,27 +237,32 @@ body.admin-page .status-badge {
         font-size: 0.88rem;
     }
 
-    /* Stat cards: full-width stack for readability on phones */
+    /* Stat cards: centered, full-width stack for readability */
     body.admin-page .stats-row {
         flex-direction: column;
+        align-items: center;
     }
 
     body.admin-page .stats-row .stat-card {
         width: 100%;
         min-width: 0;
+        min-height: 150px;
     }
 
-    /* Controls panel: heading and action buttons stack cleanly */
+    /* Controls panel: heading and action buttons stack, centered */
     body.admin-page .controls-panel {
         padding: 20px;
     }
 
     body.admin-page .panel-heading--row {
         grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
     }
 
     body.admin-page .panel-actions {
-        justify-content: stretch;
+        justify-content: center;
+        width: 100%;
     }
 
     body.admin-page .panel-actions button {
@@ -213,13 +274,21 @@ body.admin-page .status-badge {
         align-items: stretch;
     }
 
+    /* flex-basis of 180px (set in style.css for the desktop row layout)
+       would otherwise become a HEIGHT basis once the container switches
+       to flex-direction: column, stretching the input tall. Reset it. */
     body.admin-page .dashboard-toolbar--compact #searchRoll {
+        flex: 0 0 auto;
         width: 100%;
         min-width: 0;
+        height: 44px;
+        min-height: 44px;
+        line-height: 44px;
     }
 
     body.admin-page .dashboard-toolbar--compact .filter-group {
         width: 100%;
+        justify-content: center;
     }
 
     body.admin-page .dashboard-toolbar--compact .filter-group .filter-chip {
@@ -257,59 +326,76 @@ body.admin-page .status-badge {
     }
 }
 
-@media (max-width: 414px) {
+/* ---------------------------------------------------------------------
+   Mobile — max-width: 576px (phones)
+   Everything centered, comfortable spacing, nothing touches the edges.
+   --------------------------------------------------------------------- */
+@media (max-width: 576px) {
+    body.admin-page .container {
+        padding: 14px;
+    }
+
     body.admin-page .page-shell--wide {
-        width: min(100% - 16px, 1280px);
+        width: min(100% - 20px, 1280px);
+        margin: 0 auto;
     }
 
     body.admin-page .hero h1 {
-        font-size: 1.5rem;
+        font-size: clamp(1.3rem, 7vw, 1.6rem);
     }
 
+    body.admin-page .hero-copy {
+        font-size: 0.86rem;
+    }
+
+    /* Nav chips: centered 2x2 grid, comfortable touch size */
+    body.admin-page .nav-chips--actions {
+        gap: 8px;
+    }
+
+    body.admin-page .nav-chips--actions .nav-chip {
+        font-size: 0.8rem;
+        padding: 0 10px;
+        min-height: 44px;
+    }
+
+    /* Stat cards: centered text/content, balanced height */
     body.admin-page .stats-row .stat-card {
-        padding: 18px 18px;
+        min-height: 140px;
+        padding: 20px;
+        align-items: center;
+        text-align: center;
+    }
+
+    body.admin-page .stats-row .stat-card span {
+        justify-content: center;
     }
 
     body.admin-page .stats-row .stat-card strong {
-        font-size: 1.8rem;
+        font-size: 1.9rem;
     }
 
+    /* Controls panel */
     body.admin-page .controls-panel {
-        padding: 18px;
+        padding: 16px;
     }
 
     body.admin-page .panel-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
+        gap: 10px;
     }
 
     body.admin-page #importCsvButton {
         grid-column: 1 / -1;
     }
-}
 
-@media (max-width: 390px) {
-    body.admin-page .nav-chips--actions .nav-chip {
-        font-size: 0.84rem;
-        padding: 0 12px;
-    }
-
-    body.admin-page table {
-        min-width: 860px;
-    }
-}
-
-@media (max-width: 375px) {
-    body.admin-page .hero h1 {
-        font-size: 1.4rem;
-    }
-
-    body.admin-page .hero-copy {
-        font-size: 0.88rem;
-    }
-
-    body.admin-page .stats-row .stat-card strong {
-        font-size: 1.65rem;
+    body.admin-page .dashboard-toolbar--compact #searchRoll {
+        flex: 0 0 auto;
+        height: 44px;
+        min-height: 44px;
+        line-height: 44px;
+        text-align: center;
     }
 
     body.admin-page .filter-chip {
@@ -317,34 +403,10 @@ body.admin-page .status-badge {
         padding: 0 14px;
         font-size: 0.86rem;
     }
-}
 
-@media (max-width: 320px) {
-    body.admin-page .page-shell--wide {
-        width: min(100% - 12px, 1280px);
-    }
-
-    body.admin-page .nav-chips--actions {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-    }
-
-    body.admin-page .nav-chips--actions .nav-chip {
-        font-size: 0.78rem;
-        padding: 0 8px;
-        min-height: 42px;
-    }
-
-    body.admin-page .stats-row .stat-card {
-        padding: 16px;
-    }
-
-    body.admin-page .controls-panel {
-        padding: 14px;
-    }
-
+    /* Table: tighter cells, still fully preserved & scrollable */
     body.admin-page table {
-        min-width: 820px;
+        min-width: 860px;
     }
 
     body.admin-page tbody td,
