@@ -1,5 +1,13 @@
+// ======================================================
+// Global Variables
+// ======================================================
+
 let AUTH_PASSWORD = null;
 const page = document.body.dataset.page;
+
+// ======================================================
+// Common Utility Functions
+// ======================================================
 
 async function loadConfig() {
     try {
@@ -89,6 +97,10 @@ function formatDate(value) {
     });
 }
 
+// ======================================================
+// UI Helpers
+// ======================================================
+
 function playToneSequence(sequence) {
     try {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -152,6 +164,8 @@ function playScannerFeedback(status) {
     vibratePattern(320);
 }
 
+// Powers the "Lock Page" button on the Settings page (and any other
+// page that includes a [data-lock-session] control).
 function enableSessionLockButtons() {
     document.querySelectorAll("[data-lock-session]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -225,6 +239,10 @@ function protectPage(onAuthorized) {
     });
 }
 
+// ======================================================
+// Registration Page
+// ======================================================
+
 function initRegistrationPage() {
     const form = document.getElementById("registrationForm");
     const message = document.getElementById("registrationMessage");
@@ -267,6 +285,10 @@ function initRegistrationPage() {
         }
     });
 }
+
+// ======================================================
+// Scanner Page
+// ======================================================
 
 function setScanStatus(status, title, message) {
     const container = document.getElementById("scanStatus");
@@ -417,6 +439,10 @@ function initScannerPage() {
 
     waitForScannerLibrary();
 }
+
+// ======================================================
+// Admin Page
+// ======================================================
 
 function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
@@ -678,6 +704,22 @@ function initAdminPage() {
     setActiveFilterButton(activeFilter);
     loadStudents();
 }
+
+// ======================================================
+// Settings Page
+// ======================================================
+// Settings has no page-specific logic beyond the shared auth gate
+// (see the DOMContentLoaded bootstrap below) plus the Lock Page
+// feature, which is wired up by enableSessionLockButtons() above.
+
+// ======================================================
+// Lock Page
+// ======================================================
+// See enableSessionLockButtons() in the UI Helpers section above.
+
+// ======================================================
+// Event Listeners
+// ======================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
     await loadConfig();
