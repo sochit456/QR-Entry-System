@@ -1,0 +1,355 @@
+/* ---------------------------------------------------------------------
+   1. Layout rhythm & visual hierarchy
+   --------------------------------------------------------------------- */
+
+body.admin-page .dashboard {
+    gap: 22px;
+}
+
+body.admin-page .hero--split {
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 26px;
+}
+
+body.admin-page .hero-copy {
+    max-width: 560px;
+}
+
+/* ---------------------------------------------------------------------
+   2. Stat cards — clearer hierarchy, color-coded accents, no icon deps
+   --------------------------------------------------------------------- */
+
+body.admin-page .stats-row {
+    gap: 16px;
+}
+
+body.admin-page .stats-row .stat-card {
+    position: relative;
+    overflow: hidden;
+    min-width: 160px;
+    padding: 20px 22px;
+    border-radius: 20px;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+body.admin-page .stats-row .stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--primary);
+}
+
+body.admin-page .stats-row .stat-card:nth-child(2)::before {
+    background: var(--warning);
+}
+
+body.admin-page .stats-row .stat-card:nth-child(3)::before {
+    background: var(--info);
+}
+
+body.admin-page .stats-row .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.28);
+}
+
+body.admin-page .stats-row .stat-card span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(236, 248, 238, 0.68);
+}
+
+body.admin-page .stats-row .stat-card:nth-child(1) span::before { content: "🎓"; font-size: 0.95rem; }
+body.admin-page .stats-row .stat-card:nth-child(2) span::before { content: "✅"; font-size: 0.95rem; }
+body.admin-page .stats-row .stat-card:nth-child(3) span::before { content: "⏳"; font-size: 0.95rem; }
+
+body.admin-page .stats-row .stat-card strong {
+    font-size: clamp(1.9rem, 3.2vw, 2.6rem);
+}
+
+body.admin-page .stats-row .stat-card p {
+    font-size: 0.86rem;
+}
+
+/* ---------------------------------------------------------------------
+   3. Controls panel — search / filter / export
+   --------------------------------------------------------------------- */
+
+body.admin-page .controls-panel {
+    padding: 24px 26px;
+}
+
+body.admin-page .panel-heading--row {
+    align-items: center;
+}
+
+body.admin-page .panel-actions button,
+body.admin-page .panel-actions label {
+    white-space: nowrap;
+}
+
+body.admin-page .dashboard-toolbar--compact #searchRoll {
+    min-width: 200px;
+}
+
+body.admin-page .filter-chip {
+    min-height: 46px;
+    padding: 0 18px;
+}
+
+/* ---------------------------------------------------------------------
+   4. Table panel — desktop stays as-is, structural polish only
+   --------------------------------------------------------------------- */
+
+body.admin-page .table-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+body.admin-page .table-panel .table-wrap {
+    padding: 0;
+    margin: 0;
+    border-radius: 20px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+body.admin-page .table-panel .table-wrap::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+body.admin-page .table-panel .table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+}
+
+body.admin-page .table-panel .table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+body.admin-page .status-badge {
+    letter-spacing: 0.04em;
+}
+
+/* ---------------------------------------------------------------------
+   5. Responsive breakpoints — 768 / 414 / 390 / 375 / 320
+   Table rule of thumb across all mobile widths.
+   --------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+    body.admin-page {
+        overflow-x: hidden;
+    }
+
+    body.admin-page .page-shell--wide {
+        padding-top: 16px;
+        padding-bottom: 28px;
+    }
+
+    body.admin-page .hero--split {
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+
+    body.admin-page .hero h1 {
+        font-size: 1.7rem;
+    }
+
+    body.admin-page .hero-copy {
+        font-size: 0.92rem;
+    }
+
+    /* Admin top navigation: two balanced rows instead of a squeezed line */
+    body.admin-page .nav-chips--actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+    }
+
+    body.admin-page .nav-chips--actions .nav-chip {
+        min-height: 44px;
+        font-size: 0.88rem;
+    }
+
+    /* Stat cards: full-width stack for readability on phones */
+    body.admin-page .stats-row {
+        flex-direction: column;
+    }
+
+    body.admin-page .stats-row .stat-card {
+        width: 100%;
+        min-width: 0;
+    }
+
+    /* Controls panel: heading and action buttons stack cleanly */
+    body.admin-page .controls-panel {
+        padding: 20px;
+    }
+
+    body.admin-page .panel-heading--row {
+        grid-template-columns: 1fr;
+    }
+
+    body.admin-page .panel-actions {
+        justify-content: stretch;
+    }
+
+    body.admin-page .panel-actions button {
+        flex: 1 1 auto;
+    }
+
+    body.admin-page .dashboard-toolbar--compact {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    body.admin-page .dashboard-toolbar--compact #searchRoll {
+        width: 100%;
+        min-width: 0;
+    }
+
+    body.admin-page .dashboard-toolbar--compact .filter-group {
+        width: 100%;
+    }
+
+    body.admin-page .dashboard-toolbar--compact .filter-group .filter-chip {
+        flex: 1 1 0;
+    }
+
+    /* --- Student table: horizontal-scroll container, columns untouched --- */
+    body.admin-page .table-panel {
+        border-radius: 18px;
+    }
+
+    body.admin-page .table-panel .table-wrap {
+        max-height: 68vh;
+        overflow-x: auto;
+        overflow-y: auto;
+        scroll-behavior: smooth;
+    }
+
+    body.admin-page table {
+        min-width: 920px; /* preserves natural column widths, forces scroll instead of squeeze */
+    }
+
+    body.admin-page tbody td,
+    body.admin-page thead th {
+        padding: 13px 12px;
+        font-size: 0.9rem;
+    }
+
+    body.admin-page .action-stack {
+        flex-wrap: nowrap;
+    }
+
+    body.admin-page .action-button {
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 414px) {
+    body.admin-page .page-shell--wide {
+        width: min(100% - 16px, 1280px);
+    }
+
+    body.admin-page .hero h1 {
+        font-size: 1.5rem;
+    }
+
+    body.admin-page .stats-row .stat-card {
+        padding: 18px 18px;
+    }
+
+    body.admin-page .stats-row .stat-card strong {
+        font-size: 1.8rem;
+    }
+
+    body.admin-page .controls-panel {
+        padding: 18px;
+    }
+
+    body.admin-page .panel-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    body.admin-page #importCsvButton {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 390px) {
+    body.admin-page .nav-chips--actions .nav-chip {
+        font-size: 0.84rem;
+        padding: 0 12px;
+    }
+
+    body.admin-page table {
+        min-width: 860px;
+    }
+}
+
+@media (max-width: 375px) {
+    body.admin-page .hero h1 {
+        font-size: 1.4rem;
+    }
+
+    body.admin-page .hero-copy {
+        font-size: 0.88rem;
+    }
+
+    body.admin-page .stats-row .stat-card strong {
+        font-size: 1.65rem;
+    }
+
+    body.admin-page .filter-chip {
+        min-height: 42px;
+        padding: 0 14px;
+        font-size: 0.86rem;
+    }
+}
+
+@media (max-width: 320px) {
+    body.admin-page .page-shell--wide {
+        width: min(100% - 12px, 1280px);
+    }
+
+    body.admin-page .nav-chips--actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    body.admin-page .nav-chips--actions .nav-chip {
+        font-size: 0.78rem;
+        padding: 0 8px;
+        min-height: 42px;
+    }
+
+    body.admin-page .stats-row .stat-card {
+        padding: 16px;
+    }
+
+    body.admin-page .controls-panel {
+        padding: 14px;
+    }
+
+    body.admin-page table {
+        min-width: 820px;
+    }
+
+    body.admin-page tbody td,
+    body.admin-page thead th {
+        padding: 11px 10px;
+        font-size: 0.86rem;
+    }
+}
