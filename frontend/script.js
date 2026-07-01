@@ -686,4 +686,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (page === "registration") protectPage(initRegistrationPage);
     if (page === "scanner") protectPage(initScannerPage);
     if (page === "admin") protectPage(initAdminPage);
+    if (page === "settings") protectPage(() => {});
 });

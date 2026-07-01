@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body data-page="settings" class="protected-page admin-page">
+    <div id="loginOverlay" class="auth-overlay" style="display: none;">
+        <div class="auth-card glass-panel fade-scale">
+            <p class="section-tag">Restricted Page</p>
+            <h2>Authorized Access Only</h2>
+            <p class="section-copy">Enter the shared password to access settings.</p>
+            <form id="authForm" class="auth-form">
+                <label class="input-group">
+                    <span>Password</span>
+                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="primary-button primary-button--wide">Unlock Settings</button>
+                <div id="authError" class="auth-error" aria-live="polite"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
+        <div class="page-shell page-shell--wide container">
+            <header class="hero hero--split hero--compact fade-up">
+                <div class="hero-copy-block">
+                    <p class="eyebrow">Session</p>
+                    <h1>Settings</h1>
+                    <p class="hero-copy">Manage this device's access to the QR Entry System.</p>
+                </div>
+                <div class="nav-chips nav-chips--actions">
+                    <a class="nav-chip" href="/">Registration</a>
+                    <a class="nav-chip" href="/scanner">Scanner</a>
+                    <a class="nav-chip" href="/admin">Admin</a>
+                    <a class="nav-chip nav-chip--active" href="/settings">Settings</a>
+                </div>
+            </header>
+
+            <main class="dashboard-grid dashboard">
+                <section class="glass-panel controls-panel fade-up card">
+                    <div class="panel-heading">
+                        <p class="section-tag">Security</p>
+                        <h2>Lock This Session</h2>
+                    </div>
+                    <p class="section-copy">Locking this page will require the password again to access Registration, Scanner, Admin, or Settings on this device.</p>
+                    <div class="panel-actions button-group">
+                        <button type="button" class="nav-chip nav-chip--button" data-lock-session>Lock Page</button>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
