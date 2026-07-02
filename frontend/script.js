@@ -175,6 +175,65 @@ function enableSessionLockButtons() {
     });
 }
 
+// ======================================================
+// Theme System
+// ======================================================
+// Applies a `theme-<name>` class to <html>, which drives every
+// CSS custom property (colors, surfaces, shadows, etc.) defined
+// in style.css. A tiny inline script in each page's <head> also
+// applies the saved theme before first paint to avoid a flash.
+
+const THEME_STORAGE_KEY = "theme";
+const AVAILABLE_THEMES = ["blue", "green", "light", "dark"];
+const DEFAULT_THEME = "blue";
+
+function loadTheme() {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return AVAILABLE_THEMES.includes(saved) ? saved : DEFAULT_THEME;
+}
+
+function saveTheme(themeName) {
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, themeName);
+    } catch (err) {
+        console.error("Could not save theme preference:", err);
+    }
+}
+
+function applyTheme(themeName) {
+    const theme = AVAILABLE_THEMES.includes(themeName) ? themeName : DEFAULT_THEME;
+    document.documentElement.className = `theme-${theme}`;
+    updateThemeOptionButtons(theme);
+    return theme;
+}
+
+function updateThemeOptionButtons(activeTheme) {
+    document.querySelectorAll(".theme-option").forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.theme === activeTheme);
+    });
+}
+
+function initThemeSystem() {
+    // Ensure the class applied by the inline head script matches state
+    // (also covers pages/tools where that inline script didn't run).
+    applyTheme(loadTheme());
+}
+
+function initThemeSwitcher() {
+    const themeButtons = document.querySelectorAll(".theme-option");
+    if (!themeButtons.length) return;
+
+    updateThemeOptionButtons(loadTheme());
+
+    themeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const chosen = button.dataset.theme;
+            saveTheme(chosen);
+            applyTheme(chosen);
+        });
+    });
+}
+
 function protectPage(onAuthorized) {
     const overlay = document.getElementById("loginOverlay");
     const form = document.getElementById("authForm");
@@ -707,9 +766,10 @@ function initAdminPage() {
 // ======================================================
 // Settings Page
 // ======================================================
-// Settings has no page-specific logic beyond the shared auth gate
-// (see the DOMContentLoaded bootstrap below) plus the Lock Page
-// feature, which is wired up by enableSessionLockButtons() above.
+// Settings has no auth-gated logic beyond the shared auth gate
+// (see the DOMContentLoaded bootstrap below), plus the Lock Page
+// feature (enableSessionLockButtons()) and the Theme picker
+// (initThemeSwitcher()), both wired up below.
 
 // ======================================================
 // Lock Page
@@ -721,6 +781,8 @@ function initAdminPage() {
 // ======================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+    initThemeSystem();
+    initThemeSwitcher();
     await loadConfig();
     enableSessionLockButtons();
 

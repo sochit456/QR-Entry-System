@@ -39,6 +39,31 @@ textarea {
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
 
 :root {
+    /* Radius (theme-independent) */
+    --radius-xl: 20px;
+    --radius-lg: 16px;
+    --radius-md: 14px;
+    --radius-sm: 12px;
+
+    /* Motion (theme-independent) */
+    --transition-fast: 0.18s ease;
+    --transition: 0.24s ease;
+}
+
+/* ==========================================================
+   THEME VARIABLES
+   Each .theme-* group below defines the full set of color
+   variables used across every page. The active theme class
+   lives on <html> (set in theme-init.js / script.js) and only
+   these variables change between themes -- all component CSS
+   below reads from them, so nothing else needs to change.
+========================================================== */
+
+/* ==========================================================
+   BLUE THEME (default)
+========================================================== */
+:root,
+.theme-blue {
     /* Brand */
     --primary: #2563eb;
     --primary-strong: #1d4ed8;
@@ -48,10 +73,27 @@ textarea {
     /* Status */
     --success: #22c55e;
     --success-soft: #ecfdf3;
+    --success-text: #15803d;
+    --success-border: rgba(34, 197, 94, 0.28);
+    --success-glow-border: rgba(34, 197, 94, 0.35);
+    --success-glow: rgba(34, 197, 94, 0.12);
+
     --warning: #f59e0b;
     --warning-soft: #fffbeb;
+    --warning-text: #b45309;
+    --warning-text-strong: #92400e;
+    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-glow-border: rgba(245, 158, 11, 0.35);
+    --warning-glow: rgba(245, 158, 11, 0.12);
+
     --danger: #ef4444;
     --danger-soft: #fef2f2;
+    --danger-text: #b91c1c;
+    --danger-text-strong: #dc2626;
+    --danger-border: rgba(239, 68, 68, 0.28);
+    --danger-glow-border: rgba(239, 68, 68, 0.35);
+    --danger-glow: rgba(239, 68, 68, 0.12);
+
     --info: #0ea5e9;
     --info-soft: #f0f9ff;
 
@@ -59,27 +101,220 @@ textarea {
     --bg: #f8fafc;
     --card-bg: #ffffff;
     --border: #e2e8f0;
+    --input-bg: #ffffff;
+    --input-border: #e2e8f0;
+    --table-header-bg: #f1f5f9;
+    --table-row-alt: #f8fafc;
+    --scrollbar-thumb: #cbd5e1;
 
     /* Text */
     --text: #0f172a;
     --text-secondary: #64748b;
     --text-on-primary: #ffffff;
+    --button-text: #ffffff;
+    --placeholder: #94a3b8;
 
     /* Elevation */
     --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
     --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.12);
     --shadow-hover: 0 14px 32px rgba(37, 99, 235, 0.14);
+    --focus-ring: 0 0 0 4px rgba(37, 99, 235, 0.14);
+    --primary-glow: 0 12px 26px rgba(37, 99, 235, 0.24);
+    --primary-glow-soft: 0 12px 24px rgba(37, 99, 235, 0.18);
+    --overlay-bg: rgba(15, 23, 42, 0.5);
+    --blob-1: rgba(37, 99, 235, 0.1);
+    --blob-2: rgba(14, 165, 233, 0.08);
+    --primary-hover-border: rgba(37, 99, 235, 0.35);
+}
 
-    /* Radius */
-    --radius-xl: 20px;
-    --radius-lg: 16px;
-    --radius-md: 14px;
-    --radius-sm: 12px;
+/* ==========================================================
+   GREEN THEME
+========================================================== */
+.theme-green {
+    --primary: #10b981;
+    --primary-strong: #059669;
+    --primary-soft: #ecfdf5;
+    --secondary: #064e3b;
 
-    /* Motion */
-    --transition-fast: 0.18s ease;
-    --transition: 0.24s ease;
+    --success: #16a34a;
+    --success-soft: #f0fdf4;
+    --success-text: #15803d;
+    --success-border: rgba(22, 163, 74, 0.28);
+    --success-glow-border: rgba(22, 163, 74, 0.35);
+    --success-glow: rgba(22, 163, 74, 0.12);
+
+    --warning: #f59e0b;
+    --warning-soft: #fffbeb;
+    --warning-text: #b45309;
+    --warning-text-strong: #92400e;
+    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-glow-border: rgba(245, 158, 11, 0.35);
+    --warning-glow: rgba(245, 158, 11, 0.12);
+
+    --danger: #ef4444;
+    --danger-soft: #fef2f2;
+    --danger-text: #b91c1c;
+    --danger-text-strong: #dc2626;
+    --danger-border: rgba(239, 68, 68, 0.28);
+    --danger-glow-border: rgba(239, 68, 68, 0.35);
+    --danger-glow: rgba(239, 68, 68, 0.12);
+
+    --info: #0ea5e9;
+    --info-soft: #f0f9ff;
+
+    --bg: #f6fbf9;
+    --card-bg: #ffffff;
+    --border: #d7e9df;
+    --input-bg: #ffffff;
+    --input-border: #d7e9df;
+    --table-header-bg: #eef8f2;
+    --table-row-alt: #f4faf6;
+    --scrollbar-thumb: #bfe3d0;
+
+    --text: #0c1f17;
+    --text-secondary: #4b6358;
+    --text-on-primary: #ffffff;
+    --button-text: #ffffff;
+    --placeholder: #86a99a;
+
+    --shadow-sm: 0 1px 2px rgba(6, 78, 59, 0.06);
+    --shadow: 0 8px 24px rgba(6, 78, 59, 0.08);
+    --shadow-lg: 0 20px 45px rgba(6, 78, 59, 0.12);
+    --shadow-hover: 0 14px 32px rgba(16, 185, 129, 0.16);
+    --focus-ring: 0 0 0 4px rgba(16, 185, 129, 0.16);
+    --primary-glow: 0 12px 26px rgba(16, 185, 129, 0.26);
+    --primary-glow-soft: 0 12px 24px rgba(16, 185, 129, 0.18);
+    --overlay-bg: rgba(6, 35, 26, 0.55);
+    --blob-1: rgba(16, 185, 129, 0.12);
+    --blob-2: rgba(5, 150, 105, 0.08);
+    --primary-hover-border: rgba(16, 185, 129, 0.4);
+}
+
+/* ==========================================================
+   LIGHT THEME
+========================================================== */
+.theme-light {
+    --primary: #4f46e5;
+    --primary-strong: #4338ca;
+    --primary-soft: #eef2ff;
+    --secondary: #334155;
+
+    --success: #22c55e;
+    --success-soft: #f0fdf4;
+    --success-text: #15803d;
+    --success-border: rgba(34, 197, 94, 0.28);
+    --success-glow-border: rgba(34, 197, 94, 0.35);
+    --success-glow: rgba(34, 197, 94, 0.12);
+
+    --warning: #f59e0b;
+    --warning-soft: #fffbeb;
+    --warning-text: #b45309;
+    --warning-text-strong: #92400e;
+    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-glow-border: rgba(245, 158, 11, 0.35);
+    --warning-glow: rgba(245, 158, 11, 0.12);
+
+    --danger: #ef4444;
+    --danger-soft: #fef2f2;
+    --danger-text: #b91c1c;
+    --danger-text-strong: #dc2626;
+    --danger-border: rgba(239, 68, 68, 0.28);
+    --danger-glow-border: rgba(239, 68, 68, 0.35);
+    --danger-glow: rgba(239, 68, 68, 0.12);
+
+    --info: #0ea5e9;
+    --info-soft: #f0f9ff;
+
+    --bg: #f9fafb;
+    --card-bg: #ffffff;
+    --border: #e5e7eb;
+    --input-bg: #ffffff;
+    --input-border: #e5e7eb;
+    --table-header-bg: #f3f4f6;
+    --table-row-alt: #f9fafb;
+    --scrollbar-thumb: #d1d5db;
+
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-on-primary: #ffffff;
+    --button-text: #ffffff;
+    --placeholder: #9ca3af;
+
+    --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+    --shadow: 0 8px 24px rgba(17, 24, 39, 0.07);
+    --shadow-lg: 0 20px 45px rgba(17, 24, 39, 0.1);
+    --shadow-hover: 0 14px 32px rgba(79, 70, 229, 0.14);
+    --focus-ring: 0 0 0 4px rgba(79, 70, 229, 0.14);
+    --primary-glow: 0 12px 26px rgba(79, 70, 229, 0.22);
+    --primary-glow-soft: 0 12px 24px rgba(79, 70, 229, 0.16);
+    --overlay-bg: rgba(17, 24, 39, 0.45);
+    --blob-1: rgba(79, 70, 229, 0.08);
+    --blob-2: rgba(14, 165, 233, 0.06);
+    --primary-hover-border: rgba(79, 70, 229, 0.35);
+}
+
+/* ==========================================================
+   DARK THEME
+========================================================== */
+.theme-dark {
+    --primary: #3b82f6;
+    --primary-strong: #60a5fa;
+    --primary-soft: #1e3a5f;
+    --secondary: #cbd5e1;
+
+    --success: #34d399;
+    --success-soft: #113b2c;
+    --success-text: #6ee7b7;
+    --success-border: rgba(52, 211, 153, 0.3);
+    --success-glow-border: rgba(52, 211, 153, 0.4);
+    --success-glow: rgba(52, 211, 153, 0.15);
+
+    --warning: #fbbf24;
+    --warning-soft: #4a3210;
+    --warning-text: #fcd34d;
+    --warning-text-strong: #fde68a;
+    --warning-border: rgba(251, 191, 36, 0.32);
+    --warning-glow-border: rgba(251, 191, 36, 0.4);
+    --warning-glow: rgba(251, 191, 36, 0.15);
+
+    --danger: #f87171;
+    --danger-soft: #4c1d1d;
+    --danger-text: #fca5a5;
+    --danger-text-strong: #fecaca;
+    --danger-border: rgba(248, 113, 113, 0.32);
+    --danger-glow-border: rgba(248, 113, 113, 0.4);
+    --danger-glow: rgba(248, 113, 113, 0.15);
+
+    --info: #38bdf8;
+    --info-soft: #0c2f42;
+
+    --bg: #14181f;
+    --card-bg: #1c212b;
+    --border: #2c3341;
+    --input-bg: #1c212b;
+    --input-border: #2c3341;
+    --table-header-bg: #20262f;
+    --table-row-alt: #1a1f28;
+    --scrollbar-thumb: #3a4152;
+
+    --text: #e5e7eb;
+    --text-secondary: #94a3b8;
+    --text-on-primary: #ffffff;
+    --button-text: #ffffff;
+    --placeholder: #64748b;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 20px 45px rgba(0, 0, 0, 0.45);
+    --shadow-hover: 0 14px 32px rgba(59, 130, 246, 0.25);
+    --focus-ring: 0 0 0 4px rgba(59, 130, 246, 0.3);
+    --primary-glow: 0 12px 26px rgba(59, 130, 246, 0.35);
+    --primary-glow-soft: 0 12px 24px rgba(59, 130, 246, 0.22);
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --blob-1: rgba(59, 130, 246, 0.15);
+    --blob-2: rgba(56, 189, 248, 0.1);
+    --primary-hover-border: rgba(59, 130, 246, 0.45);
 }
 
 /* ==========================================================
@@ -93,6 +328,7 @@ body {
     font-family: "Poppins", sans-serif;
     color: var(--text);
     background: var(--bg);
+    transition: background var(--transition), color var(--transition);
 }
 
 body::before,
@@ -112,7 +348,8 @@ body::before {
     height: 360px;
     top: -80px;
     left: -100px;
-    background: rgba(37, 99, 235, 0.1);
+    background: var(--blob-1);
+    transition: background var(--transition);
 }
 
 body::after {
@@ -120,7 +357,8 @@ body::after {
     height: 420px;
     right: -120px;
     bottom: -100px;
-    background: rgba(14, 165, 233, 0.08);
+    background: var(--blob-2);
+    transition: background var(--transition);
 }
 
 body.auth-ready {
@@ -147,8 +385,22 @@ body.auth-ready {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--scrollbar-thumb);
     border-radius: 999px;
+}
+
+/* Selection color */
+::selection {
+    background: var(--primary);
+    color: var(--text-on-primary);
+}
+
+/* Global focus-visible ring (keyboard navigation) */
+a:focus-visible,
+button:focus-visible,
+.nav-chip:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 /* ==========================================================
@@ -268,7 +520,7 @@ body.auth-ready {
 .nav-chip:hover,
 .nav-chip--button:hover {
     transform: translateY(-2px);
-    border-color: rgba(37, 99, 235, 0.35);
+    border-color: var(--primary-hover-border);
     color: var(--primary);
 }
 
@@ -366,9 +618,9 @@ body.auth-ready {
 }
 
 .primary-button {
-    color: var(--text-on-primary);
+    color: var(--button-text);
     background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+    box-shadow: var(--primary-glow);
 }
 
 .primary-button:hover,
@@ -422,21 +674,21 @@ body.auth-ready {
 }
 
 .action-button--success {
-    color: #15803d;
+    color: var(--success-text);
     background: var(--success-soft);
-    border-color: rgba(34, 197, 94, 0.28);
+    border-color: var(--success-border);
 }
 
 .action-button--warning {
-    color: #b45309;
+    color: var(--warning-text);
     background: var(--warning-soft);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: var(--warning-border);
 }
 
 .action-button--danger {
-    color: #b91c1c;
+    color: var(--danger-text);
     background: var(--danger-soft);
-    border-color: rgba(239, 68, 68, 0.28);
+    border-color: var(--danger-border);
 }
 
 .action-button--primary {
@@ -490,9 +742,9 @@ select {
     width: 100%;
     min-height: 52px;
     padding: 0 16px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--input-border);
     border-radius: var(--radius-sm);
-    background: var(--card-bg);
+    background: var(--input-bg);
     color: var(--text);
     outline: none;
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast),
@@ -500,7 +752,7 @@ select {
 }
 
 select option {
-    background-color: #ffffff;
+    background-color: var(--input-bg);
     color: var(--text);
 }
 
@@ -513,13 +765,13 @@ select option[value="PGDCA"] {
 }
 
 input::placeholder {
-    color: #94a3b8;
+    color: var(--placeholder);
 }
 
 input:focus,
 select:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+    box-shadow: var(--focus-ring);
 }
 
 .form-grid {
@@ -545,7 +797,7 @@ thead th {
     top: 0;
     z-index: 1;
     padding: 15px 14px;
-    background: #f1f5f9;
+    background: var(--table-header-bg);
     color: var(--text-secondary);
     font-size: 0.78rem;
     letter-spacing: 0.08em;
@@ -568,7 +820,7 @@ tbody tr {
 }
 
 tbody tr:nth-child(even) {
-    background: #f8fafc;
+    background: var(--table-row-alt);
 }
 
 tbody tr:hover {
@@ -591,7 +843,7 @@ tbody tr:hover {
     display: inline-flex;
     padding: 6px;
     border-radius: var(--radius-sm);
-    background: #ffffff;
+    background: var(--card-bg);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
 }
@@ -649,12 +901,12 @@ tbody tr:hover {
 
 .status-badge.used {
     background: var(--warning-soft);
-    color: #b45309;
+    color: var(--warning-text);
 }
 
 .status-badge.not-used {
     background: var(--success-soft);
-    color: #15803d;
+    color: var(--success-text);
 }
 
 .status-pill {
@@ -682,7 +934,7 @@ tbody tr:hover {
     padding: 8px 14px;
     border-radius: 999px;
     background: var(--success-soft);
-    color: #15803d;
+    color: var(--success-text);
     font-size: 0.84rem;
     font-weight: 700;
 }
@@ -697,16 +949,16 @@ tbody tr:hover {
 }
 
 .inline-message.success {
-    color: #15803d;
+    color: var(--success-text);
 }
 
 .inline-message.error,
 .auth-error {
-    color: #dc2626;
+    color: var(--danger-text-strong);
 }
 
 .inline-message.warning {
-    color: #b45309;
+    color: var(--warning-text);
 }
 
 /* ---- Modals / overlays ---- */
@@ -717,7 +969,7 @@ tbody tr:hover {
     display: grid;
     place-items: center;
     padding: 18px;
-    background: rgba(15, 23, 42, 0.5);
+    background: var(--overlay-bg);
     backdrop-filter: blur(4px);
     animation: fadeIn 0.28s ease;
 }
@@ -816,7 +1068,7 @@ tbody tr:hover {
     display: flex;
     justify-content: center;
     align-items: center;
-    background: rgba(15, 23, 42, 0.5);
+    background: var(--overlay-bg);
     z-index: 9999;
 }
 
@@ -937,7 +1189,7 @@ tbody tr:hover {
     aspect-ratio: 1;
     padding: 18px;
     border-radius: var(--radius-xl);
-    background: #ffffff;
+    background: var(--card-bg);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
 }
@@ -1114,7 +1366,7 @@ body.admin-page .hero-copy {
     background: var(--primary);
     border-color: var(--primary);
     color: var(--text-on-primary);
-    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+    box-shadow: var(--primary-glow-soft);
 }
 
 body.admin-page .controls-panel {
@@ -1151,7 +1403,7 @@ body.admin-page .table-panel .table-wrap {
     border-radius: var(--radius-xl);
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 body.admin-page .table-panel .table-wrap::-webkit-scrollbar {
@@ -1237,21 +1489,21 @@ body.admin-page .status-badge {
 
 .scan-status.valid {
     background: var(--success-soft);
-    border-color: rgba(34, 197, 94, 0.35);
-    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12);
+    border-color: var(--success-glow-border);
+    box-shadow: 0 0 0 1px var(--success-glow);
 }
 
 .scan-status.invalid {
     background: var(--danger-soft);
-    border-color: rgba(239, 68, 68, 0.35);
-    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.12);
+    border-color: var(--danger-glow-border);
+    box-shadow: 0 0 0 1px var(--danger-glow);
 }
 
 .scan-status.used {
     background: var(--warning-soft);
-    border-color: rgba(245, 158, 11, 0.35);
-    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.12);
-    color: #92400e;
+    border-color: var(--warning-glow-border);
+    box-shadow: 0 0 0 1px var(--warning-glow);
+    color: var(--warning-text-strong);
 }
 
 .scanner-note {
@@ -1263,8 +1515,75 @@ body.admin-page .status-badge {
 ========================================================== */
 
 /* Uses .controls-panel and .button-group from the shared
-   component styles above; no page-specific overrides needed
-   beyond the admin-page toolbar rules already applied. */
+   component styles above for the Lock Session card. */
+
+/* ---- Theme picker ---- */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-top: 20px;
+}
+
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card-bg);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.92rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-fast), border-color var(--transition-fast),
+        box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-option:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-hover-border);
+    box-shadow: var(--shadow);
+}
+
+.theme-option.is-active {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    box-shadow: var(--primary-glow-soft);
+}
+
+.theme-option.is-active .theme-option-name {
+    color: var(--primary);
+}
+
+.theme-swatch {
+    display: block;
+    width: 100%;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.theme-swatch--blue {
+    background: linear-gradient(135deg, #2563eb, #0ea5e9);
+}
+
+.theme-swatch--green {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.theme-swatch--light {
+    background: linear-gradient(135deg, #ffffff, #e5e7eb);
+}
+
+.theme-swatch--dark {
+    background: linear-gradient(135deg, #1c212b, #14181f);
+}
 
 /* ==========================================================
    PAGE: Lock

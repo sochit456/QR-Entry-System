@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>
+        (function () {
+            var t = localStorage.getItem("theme") || "blue";
+            document.documentElement.className = "theme-" + t;
+        })();
+    </script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body data-page="settings" class="protected-page admin-page">
@@ -41,6 +47,32 @@
             </header>
 
             <main class="dashboard-grid dashboard">
+                <section class="glass-panel controls-panel fade-up card">
+                    <div class="panel-heading">
+                        <p class="section-tag">Appearance</p>
+                        <h2>Theme</h2>
+                    </div>
+                    <p class="section-copy">Choose how the QR Entry System looks on this device. Applies instantly to every page.</p>
+                    <div class="theme-grid" id="themeGrid">
+                        <button type="button" class="theme-option" data-theme="blue">
+                            <span class="theme-swatch theme-swatch--blue" aria-hidden="true"></span>
+                            <span class="theme-option-name">Blue</span>
+                        </button>
+                        <button type="button" class="theme-option" data-theme="green">
+                            <span class="theme-swatch theme-swatch--green" aria-hidden="true"></span>
+                            <span class="theme-option-name">Green</span>
+                        </button>
+                        <button type="button" class="theme-option" data-theme="light">
+                            <span class="theme-swatch theme-swatch--light" aria-hidden="true"></span>
+                            <span class="theme-option-name">Light</span>
+                        </button>
+                        <button type="button" class="theme-option" data-theme="dark">
+                            <span class="theme-swatch theme-swatch--dark" aria-hidden="true"></span>
+                            <span class="theme-option-name">Dark</span>
+                        </button>
+                    </div>
+                </section>
+
                 <section class="glass-panel controls-panel fade-up card">
                     <div class="panel-heading">
                         <p class="section-tag">Security</p>
