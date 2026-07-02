@@ -1668,3 +1668,119 @@ body.admin-page .status-badge {
         font-size: 0.84rem;
     }
 }
+
+/* ==========================================================
+   THEME — Light / Dark / System
+   (Appended: does not modify any rule above. Overrides the
+   root variables when html[data-theme="dark"] is set by
+   script.js, so every component that already uses var(--bg),
+   var(--card-bg), var(--text), var(--border), etc. re-colors
+   automatically.)
+========================================================== */
+
+/* Smooth transition whenever the theme is switched */
+* ,
+*::before,
+*::after {
+    transition: background-color .25s ease,
+                color .25s ease,
+                border-color .25s ease,
+                box-shadow .25s ease;
+}
+
+html[data-theme="dark"] {
+    /* Brand */
+    --primary: #3b82f6;
+    --primary-strong: #60a5fa;
+    --primary-soft: rgba(59, 130, 246, 0.16);
+    --secondary: #cbd5e1;
+
+    /* Status */
+    --success: #22c55e;
+    --success-soft: rgba(34, 197, 94, 0.16);
+    --warning: #f59e0b;
+    --warning-soft: rgba(245, 158, 11, 0.16);
+    --danger: #ef4444;
+    --danger-soft: rgba(239, 68, 68, 0.16);
+    --info: #38bdf8;
+    --info-soft: rgba(56, 189, 248, 0.16);
+
+    /* Surfaces */
+    --bg: #111827;
+    --card-bg: #1f2937;
+    --border: #374151;
+
+    /* Text */
+    --text: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-on-primary: #ffffff;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 20px 45px rgba(0, 0, 0, 0.55);
+    --shadow-hover: 0 14px 32px rgba(59, 130, 246, 0.25);
+}
+
+/* Decorative background blobs — soften for dark surfaces */
+html[data-theme="dark"] body::before {
+    background: rgba(59, 130, 246, 0.14);
+}
+
+html[data-theme="dark"] body::after {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Elements with hardcoded (non-variable) backgrounds/colors
+   that would otherwise stay as "white boxes" in dark mode.
+   The QR code itself (.qr-frame / .qr-thumb-link) is left
+   intentionally white — QR codes need light quiet zones to
+   remain scannable. */
+html[data-theme="dark"] thead th {
+    background: var(--card-bg);
+}
+
+html[data-theme="dark"] tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.035);
+}
+
+html[data-theme="dark"] select option {
+    background-color: var(--card-bg);
+    color: var(--text);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+html[data-theme="dark"] body.admin-page .table-panel .table-wrap {
+    scrollbar-color: #4b5563 transparent;
+}
+
+/* Status / message text colors — brightened for contrast on
+   dark, translucent status backgrounds */
+html[data-theme="dark"] .action-button--success,
+html[data-theme="dark"] .status-badge.not-used,
+html[data-theme="dark"] .live-pill,
+html[data-theme="dark"] .inline-message.success {
+    color: #4ade80;
+}
+
+html[data-theme="dark"] .action-button--warning,
+html[data-theme="dark"] .status-badge.used,
+html[data-theme="dark"] .inline-message.warning,
+html[data-theme="dark"] .scan-status.used {
+    color: #fbbf24;
+}
+
+html[data-theme="dark"] .action-button--danger,
+html[data-theme="dark"] .inline-message.error,
+html[data-theme="dark"] .auth-error {
+    color: #f87171;
+}
+
+/* Theme dropdown (Settings page) — reuses the existing
+   input-group / select styling already defined above */
+.theme-select {
+    cursor: pointer;
+}

@@ -736,3 +736,94 @@ document.addEventListener("DOMContentLoaded", async () => {
         protectPage(() => {});
     }
 });
+
+// ======================================================
+// Theme (Light / Dark / System)
+// ======================================================
+// Additive feature only — does not alter any code above.
+// Reads/writes localStorage key "theme" with possible values
+// "light", "dark", "system". Applies the resolved theme via
+// the data-theme attribute on <html>, which style.css uses to
+// override the existing CSS variables (--bg, --card-bg, etc.).
+
+const THEME_STORAGE_KEY = "theme";
+let themeMediaQuery = null;
+
+// Returns "dark" or "light" based on the OS/browser preference.
+function getSystemTheme() {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+}
+
+// Applies the given theme preference ("light" | "dark" | "system")
+// to the document by resolving it to an actual "light"/"dark" value.
+function applyTheme(theme) {
+    const resolved = theme === "system" ? getSystemTheme() : theme;
+    document.documentElement.setAttribute("data-theme", resolved);
+}
+
+// Persists the chosen preference, applies it immediately, and
+// keeps the Settings dropdown (if present) in sync.
+function setTheme(theme) {
+    if (theme !== "light" && theme !== "dark" && theme !== "system") return;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyTheme(theme);
+
+    const themeSelect = document.getElementById("themeSelect");
+    if (themeSelect && themeSelect.value !== theme) {
+        themeSelect.value = theme;
+    }
+}
+
+// Reads the saved preference (defaulting to "system") and applies it.
+// Returns the preference that was loaded.
+function loadTheme() {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) || "system";
+    applyTheme(saved);
+    return saved;
+}
+
+// Watches the OS color-scheme preference so that, while the site is
+// open with "System" selected, the theme updates live if the user
+// switches their OS theme.
+function listenForSystemTheme() {
+    if (!window.matchMedia) return;
+    if (themeMediaQuery) return; // already listening
+
+    themeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+        const current = localStorage.getItem(THEME_STORAGE_KEY) || "system";
+        if (current === "system") {
+            applyTheme("system");
+        }
+    };
+
+    if (themeMediaQuery.addEventListener) {
+        themeMediaQuery.addEventListener("change", handleChange);
+    } else if (themeMediaQuery.addListener) {
+        // Safari < 14 fallback
+        themeMediaQuery.addListener(handleChange);
+    }
+}
+
+// Wires up the Theme <select> on the Settings page, if present.
+function initThemeSelector() {
+    const themeSelect = document.getElementById("themeSelect");
+    if (!themeSelect) return;
+
+    themeSelect.value = localStorage.getItem(THEME_STORAGE_KEY) || "system";
+    themeSelect.addEventListener("change", (event) => {
+        setTheme(event.target.value);
+    });
+}
+
+// Apply the saved/system theme as early as possible (script.js runs
+// at the end of <body>, before the DOMContentLoaded/paint settles)
+// to avoid a flash of the wrong theme.
+loadTheme();
+listenForSystemTheme();
+
+document.addEventListener("DOMContentLoaded", () => {
+    initThemeSelector();
+});
