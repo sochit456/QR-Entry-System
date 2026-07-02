@@ -290,6 +290,30 @@ function initRegistrationPage() {
 // Scanner Page
 // ======================================================
 
+// Maps the existing verification status values (already used by the
+// Scan Result card) to the camera card's status classes. Reused here
+// so the Camera/Scanner card mirrors the same status without any new
+// status variables being introduced.
+const CAMERA_STATUS_CLASS_MAP = {
+    neutral: "camera-status-default",
+    valid: "camera-status-success",
+    used: "camera-status-warning",
+    invalid: "camera-status-error",
+};
+
+function setCameraCardStatus(status) {
+    const scannerPanel = document.querySelector(".scanner-panel");
+    if (!scannerPanel) return;
+
+    // Remove any previously applied status class so only one is active.
+    Object.values(CAMERA_STATUS_CLASS_MAP).forEach((className) => {
+        scannerPanel.classList.remove(className);
+    });
+
+    const nextClass = CAMERA_STATUS_CLASS_MAP[status] || CAMERA_STATUS_CLASS_MAP.neutral;
+    scannerPanel.classList.add(nextClass);
+}
+
 function setScanStatus(status, title, message) {
     const container = document.getElementById("scanStatus");
     const titleNode = document.getElementById("scanTitle");
@@ -300,6 +324,9 @@ function setScanStatus(status, title, message) {
     pill.textContent = status === "neutral" ? "Ready" : status.toUpperCase();
     titleNode.textContent = title;
     messageNode.textContent = message;
+
+    // Mirror the same verification status onto the Camera/Scanner card.
+    setCameraCardStatus(status);
 }
 
 function initScannerPage() {

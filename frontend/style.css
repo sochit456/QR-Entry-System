@@ -1194,6 +1194,38 @@ body.admin-page .status-badge {
     min-height: 100%;
 }
 
+/* ---- Camera Card Status Mirroring ----
+   Mirrors the verification status shown on the Scan Result
+   card (default / success / warning / error) onto the
+   Camera/Scanner card border, glow and background tint. */
+.scanner-panel {
+    transition: background 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+}
+
+.scanner-panel.camera-status-default {
+    background: var(--card-bg);
+    border-color: var(--border);
+    box-shadow: var(--shadow);
+}
+
+.scanner-panel.camera-status-success {
+    background: var(--success-soft);
+    border-color: rgba(34, 197, 94, 0.35);
+    box-shadow: var(--shadow), 0 0 0 1px rgba(34, 197, 94, 0.12), 0 0 24px rgba(34, 197, 94, 0.18);
+}
+
+.scanner-panel.camera-status-warning {
+    background: var(--warning-soft);
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow: var(--shadow), 0 0 0 1px rgba(245, 158, 11, 0.12), 0 0 24px rgba(245, 158, 11, 0.18);
+}
+
+.scanner-panel.camera-status-error {
+    background: var(--danger-soft);
+    border-color: rgba(239, 68, 68, 0.35);
+    box-shadow: var(--shadow), 0 0 0 1px rgba(239, 68, 68, 0.12), 0 0 24px rgba(239, 68, 68, 0.18);
+}
+
 .scanner-viewport {
     overflow: hidden;
     margin-top: 8px;
