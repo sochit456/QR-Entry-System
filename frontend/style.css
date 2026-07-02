@@ -1197,9 +1197,11 @@ body.admin-page .status-badge {
 /* ---- Camera Card Status Mirroring ----
    Mirrors the verification status shown on the Scan Result
    card (default / success / warning / error) onto the
-   Camera/Scanner card border, glow and background tint. */
+   Camera/Scanner card border, glow and background tint.
+   Applied instantly (no transition) so the color change reads
+   as an immediate result, not an animated fade. */
 .scanner-panel {
-    transition: background 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+    transition: none;
 }
 
 .scanner-panel.camera-status-default {
