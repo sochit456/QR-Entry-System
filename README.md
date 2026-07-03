@@ -1,16 +1,36 @@
-# QR-Based Entry System
+# 🎟️ QR Entry System
 
-A FastAPI + SQLite web application for student registration, QR code generation, gate scanning, and admin monitoring during college events.
+A **FastAPI + PostgreSQL/SQLite** web application for managing student registration, QR-based entry passes, and live gate verification at college events. It provides a password-protected admin dashboard for tracking attendance in real time, plus a mobile-friendly scanner for volunteers at the gate.
 
-## Features
+## ✨ Features
 
-- Student registration with unique roll number validation
-- Token-only QR code generation using the `qrcode` library
-- Single-use entry verification in real time
-- Mobile-friendly scanner page using `html5-qrcode`
-- Admin panel with search, filter, and timestamp visibility
+- **Student Registration** — Simple form with name, roll number, course, and contact number; instantly generates a unique single-use QR pass.
+- **Secure Token-Based QR Codes** — Each pass is tied to a randomly generated token (not personal data), created with the `qrcode` library.
+- **Live Gate Scanner** — Camera-based QR scanner (`html5-qrcode`) with camera switching, sound, and vibration feedback for VALID / USED / INVALID scans.
+- **One-Time Entry Verification** — Each QR code can only be used once; duplicate scans are automatically rejected.
+- **Admin Dashboard** — View live stats (total, used, remaining), search by roll number, filter by status, manually mark/reset entries, and delete records.
+- **CSV Import & Export** — Download the full student list as CSV or bulk-import students from a CSV file.
+- **Password-Protected Access** — Registration, Scanner, Admin, and Settings pages are locked behind a shared admin password (session-based).
+- **Theme Support** — Light, dark, and system-based themes, adjustable from the Settings page.
+- **Custom 404 Page** — Styled fallback page for unmatched routes.
+- **Health Check Endpoint** — `/health` endpoint for uptime monitoring services.
 
-## Project Structure
+## 🛠️ Technologies Used
+
+**Backend**
+- FastAPI — REST API framework
+- SQLAlchemy — ORM for database access
+- PostgreSQL (production) / SQLite (local, via `DATABASE_URL`)
+- qrcode — QR code image generation
+- Uvicorn — ASGI server
+- Pydantic — request/response validation
+
+**Frontend**
+- HTML5, CSS3 (custom glassmorphism-style UI, no framework)
+- Vanilla JavaScript (fetch API, no build step)
+- html5-qrcode — in-browser QR scanning
+
+## 📁 Project Structure
 
 ```text
 QR-Entry-System/
@@ -19,7 +39,6 @@ QR-Entry-System/
 ├── .gitignore
 ├── backend/
 │   ├── __init__.py
-│   ├── __pycache__/
 │   ├── main.py
 │   ├── database.py
 │   ├── models.py
@@ -27,12 +46,49 @@ QR-Entry-System/
 │   └── utils.py
 └── frontend/
     ├── index.html
-    ├── admin.html
     ├── scanner.html
+    ├── admin.html
+    ├── settings.html
+    ├── 404.html
     ├── script.js
     ├── style.css
     └── logo.png
 ```
+
+## 📄 Pages
+
+| Page | Route | Description |
+|---|---|---|
+| Registration | `/` | Register a student and generate their QR pass |
+| Scanner | `/scanner` | Scan QR codes at the gate for entry verification |
+| Admin Dashboard | `/admin` | View, search, filter, import/export, and manage all students |
+| Settings | `/settings` | Lock the session or change the display theme |
+| 404 | any unmatched route | Custom "page not found" screen |
+
+All pages except the 404 page require the admin password before content is shown.
+
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/config` | Returns the admin password used for frontend login |
+| `POST` | `/register` | Register a new student and generate a QR token |
+| `GET` | `/qr/{token}` | Returns the QR code image for a given token |
+| `POST` | `/verify` | Verify a scanned token and mark entry as used |
+| `POST` | `/manual-entry/{student_id}` | Manually mark a student as present |
+| `POST` | `/reset-entry/{student_id}` | Reset a student's entry status |
+| `GET` | `/students` | List all registered students |
+| `DELETE` | `/student/{student_id}` | Delete a student record |
+| `GET` | `/export` | Export all students as a CSV file |
+| `POST` | `/import` | Bulk import students from a CSV file |
+| `GET` | `/health` | Health check endpoint used for uptime monitoring |
+
+## 📝 Notes
+
+- QR code images are generated on the fly at `/qr/{token}` and are not stored on disk.
+- The scanner page loads `html5-qrcode` from a CDN, so internet access is required unless the library is vendored locally.
+- The database schema (PostgreSQL or SQLite) is created automatically on first run.
+- The `ADMIN_PASSWORD` environment variable controls access to all protected pages.
 
 ## Setup
 
@@ -55,19 +111,6 @@ Value: (paste your postgres URL)
  Key: ADMIN_PASSWORD
 Value: (your_strong_password_here)
 ```
-
-## API Endpoints
-
-- `POST /register`
-- `POST /verify`
-- `GET /students`
-- `GET /health`
-
-## Notes
-
-- QR images are stored inside `qr_codes/`.
-- The scanner page loads `html5-qrcode` from a CDN, so internet access is needed for the scanner library unless you vendor it locally.
-- `database.db` is created automatically if it does not exist.
 
 ## 👉 Prevent Render Free Service From Sleeping
 
