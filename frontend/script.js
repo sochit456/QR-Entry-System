@@ -100,11 +100,41 @@ function setButtonLoading(button, isLoading, loadingLabel = "Loading...") {
     button.classList.toggle("is-loading", isLoading);
 }
 
+// Turns a FastAPI-style `detail` value into a plain, human-readable string.
+//
+// `detail` is normally a string (every HTTPException in this app sends a
+// string). But FastAPI's built-in request validation (422 responses) can
+// still send `detail` as a list of error objects, e.g.
+//   [{ "loc": ["body", "name"], "msg": "...", "type": "..." }]
+// Passing that array/object straight into `new Error(...)` causes it to be
+// stringified with the default Object.toString(), which produces the
+// literal text "[object Object]" instead of a real message. This helper
+// makes sure we always end up with a string no matter the shape of `detail`.
+function extractErrorMessage(data) {
+    const fallback = "Something went wrong. Please try again.";
+    const detail = data && data.detail;
+
+    if (!detail) return fallback;
+    if (typeof detail === "string") return detail;
+
+    if (Array.isArray(detail)) {
+        const messages = detail
+            .map((item) => (item && typeof item === "object" ? item.msg : item))
+            .filter(Boolean);
+        return messages.length ? messages.join(" ") : fallback;
+    }
+
+    if (typeof detail === "object") {
+        return detail.msg || fallback;
+    }
+
+    return fallback;
+}
+
 async function parseJsonResponse(response) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        const detail = data.detail || "Something went wrong. Please try again.";
-        throw new Error(detail);
+        throw new Error(extractErrorMessage(data));
     }
     return data;
 }
@@ -621,7 +651,7 @@ function renderStudents(students, activeFilter) {
                             <button type="button" class="action-button action-button--danger" data-delete-student="${student.id}">
                                 Delete
                             </button>
-                            <button type="button" class="action-button action-button--primary" data-share-id="${escapeHtml(String(student.id))}">
+                            <button type="button" class="action-button action-button--primary" data-share-student='${JSON.stringify(student)}'>
                                 Share
                             </button>
                         </div>
@@ -656,7 +686,6 @@ function initAdminPage() {
     const tableBody = document.getElementById("studentsTableBody");
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
-    let studentsById = new Map();
     let activeFilter = "all";
 
     async function loadStudents(successMessage = null) {
@@ -667,7 +696,6 @@ function initAdminPage() {
             students = await parseJsonResponse(
                 await authFetch("/students", { cache: "no-store" })
             );
-            studentsById = new Map(students.map((s) => [String(s.id), s]));
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, successMessage || `${students.length} Students Registered.`, "success");
@@ -684,19 +712,14 @@ function initAdminPage() {
         students = students.map((s) =>
             String(s.id) !== String(studentId) ? s : { ...s, ...updates }
         );
-        studentsById = new Map(students.map((s) => [String(s.id), s]));
     }
 
     tableBody.addEventListener("click", async (event) => {
-        const shareButton = event.target.closest("button[data-share-id]");
+        const shareButton = event.target.closest("button[data-share-student]");
 
         if (shareButton) {
             try {
-                const student = studentsById.get(String(shareButton.dataset.shareId));
-                if (!student) {
-                    alert("Unable to share QR.");
-                    return;
-                }
+                const student = JSON.parse(shareButton.dataset.shareStudent);
                 const qrUrl = window.location.origin + buildStudentQrUrl(student);
 
                 let phone = String(student.contact || "").replace(/\D/g, "");
@@ -765,7 +788,6 @@ function initAdminPage() {
                 await authFetch(`/student/${studentId}`, { method: "DELETE" })
             );
             students = students.filter((s) => String(s.id) !== String(studentId));
-            studentsById = new Map(students.map((s) => [String(s.id), s]));
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, data.message, "success");

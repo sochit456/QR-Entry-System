@@ -70,7 +70,7 @@
                     <form id="registrationForm" class="form-grid">
                         <label class="input-group">
                             <span>Name</span>
-                            <input type="text" name="name" placeholder="Enter full name" required>
+                            <input type="text" name="name" placeholder="Enter full name" pattern="[A-Za-z]+(\s[A-Za-z]+)*" title="Name cannot contain special characters." maxlength="120" required>
                         </label>
                         <label class="input-group">
                             <span>Roll No</span>
