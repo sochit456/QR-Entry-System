@@ -7,8 +7,9 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -82,6 +83,37 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
     return FileResponse(BASE_DIR / "frontend" / "404.html", status_code=404)
+
+
+# By default, FastAPI/Pydantic return validation failures as:
+#   {"detail": [{"loc": [...], "msg": "...", "type": "..."}]}
+# i.e. `detail` is a LIST of ERROR OBJECTS, not a string. Every other
+# error response in this API returns `detail` as a plain string (see the
+# HTTPException calls throughout this file), and the frontend's
+# parseJsonResponse() does `new Error(data.detail)` assuming a string.
+# When `detail` is a list of objects instead, `new Error([...])` stringifies
+# the array by calling toString() on each item, and the default
+# Object.toString() of a plain object is the literal text "[object Object]".
+# That is the exact cause of the bug reported in the UI.
+#
+# This handler normalizes FastAPI's validation error payload into the same
+# "detail is always a human-readable string" shape used everywhere else in
+# the API, so the frontend can keep doing `new Error(data.detail)` safely.
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    first_error = exc.errors()[0]
+    message = first_error.get("msg", "Invalid input.")
+    # Pydantic prefixes custom validator messages with "Value error, ".
+    # Strip that prefix so the user sees a clean message, e.g.
+    # "Name cannot contain special characters." instead of
+    # "Value error, Name cannot contain special characters."
+    if message.startswith("Value error, "):
+        message = message[len("Value error, "):]
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": message},
+    )
 
 
 @app.get("/", include_in_schema=False)

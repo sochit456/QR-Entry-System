@@ -2,15 +2,11 @@ import re
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, validator
 
-# Only letters, numbers, spaces, apostrophes, periods, commas, and hyphens
-# are allowed in free-text identity fields. This is a defense-in-depth
-# control: even though the frontend always HTML-escapes this data before
-# rendering it, restricting the accepted character set at the API boundary
-# means the stored value can never contain the characters (<, >, ", ', /)
-# needed to break out of an HTML tag or attribute in the first place.
-NAME_ROLL_PATTERN = re.compile(r"^[A-Za-z0-9 '.,-]+$")
+# Only letters and spaces are allowed in a student's name. This rejects
+# digits and special characters such as < > <= >= + - _ etc.
+NAME_PATTERN = re.compile(r"^[A-Za-z]+(?:[ ][A-Za-z]+)*$")
 
 
 class LoginRequest(BaseModel):
@@ -28,18 +24,14 @@ class RegisterStudentRequest(BaseModel):
     course: Literal["BCA 1st", "BCA 2nd", "BCA 3rd", "PGDCA"]
     contact: str = Field(..., min_length=1, max_length=10)
 
-    @field_validator("name", "roll_no")
-    @classmethod
-    def validate_allowed_characters(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("This field cannot be empty.")
-        if not NAME_ROLL_PATTERN.match(value):
-            raise ValueError(
-                "Only letters, numbers, spaces, apostrophes, periods, "
-                "commas, and hyphens are allowed."
-            )
-        return value
+    @validator("name")
+    def validate_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Name cannot be empty.")
+        if not NAME_PATTERN.match(cleaned):
+            raise ValueError("Name cannot contain special characters.")
+        return cleaned
 
 
 class RegisterStudentResponse(BaseModel):
