@@ -5,3 +5,4 @@ qrcode[pil]>=7.4.2,<8.0.0
 psycopg2-binary
 python-dotenv>=1.0.0,<2.0.0
 python-multipart>=0.0.9,<1.0.0
+python-jose[cryptography]>=3.3.0,<4.0.0

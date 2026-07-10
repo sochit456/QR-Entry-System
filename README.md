@@ -77,10 +77,11 @@ All pages except the 404 page require the admin password before content is shown
 | `POST` | `/verify` | Verify a scanned token and mark entry as used |
 | `POST` | `/manual-entry/{student_id}` | Manually mark a student as present |
 | `POST` | `/reset-entry/{student_id}` | Reset a student's entry status |
-| `GET` | `/students` | List all registered students |
-| `DELETE` | `/student/{student_id}` | Delete a student record |
-| `GET` | `/export` | Export all students as a CSV file |
-| `POST` | `/import` | Bulk import students from a CSV file |
+| `POST` | `/login` | Authenticate with the admin password and receive a JWT |
+| `GET` | `/students` | List all registered students (admin, requires JWT) |
+| `DELETE` | `/student/{student_id}` | Delete a student record (admin, requires JWT) |
+| `GET` | `/export` | Export all students as a CSV file (admin, requires JWT) |
+| `POST` | `/import` | Bulk import students from a CSV file (admin, requires JWT) |
 | `GET` | `/health` | Health check endpoint used for uptime monitoring |
 
 ## 📝 Notes
@@ -88,7 +89,8 @@ All pages except the 404 page require the admin password before content is shown
 - QR code images are generated on the fly at `/qr/{token}` and are not stored on disk.
 - The scanner page loads `html5-qrcode` from a CDN, so internet access is required unless the library is vendored locally.
 - The database schema (PostgreSQL or SQLite) is created automatically on first run.
-- The `ADMIN_PASSWORD` environment variable controls access to all protected pages.
+- The `ADMIN_PASSWORD` environment variable controls access to all protected pages. The admin authenticates via `POST /login`, which returns a JWT (8 hour expiry) that must be sent as `Authorization: Bearer <token>` on protected API requests.
+- The `JWT_SECRET_KEY` environment variable signs and verifies admin JWTs. Use a long, random value and keep it secret.
 
 ## Setup
 
@@ -110,6 +112,10 @@ Value: (paste your postgres URL)
 ```powershell
  Key: ADMIN_PASSWORD
 Value: (your_strong_password_here)
+```
+```powershell
+ Key: JWT_SECRET_KEY
+Value: (a_long_random_secret_string)
 ```
 
 ## 👉 Prevent Render Free Service From Sleeping
