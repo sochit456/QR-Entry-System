@@ -621,7 +621,7 @@ function renderStudents(students, activeFilter) {
                             <button type="button" class="action-button action-button--danger" data-delete-student="${student.id}">
                                 Delete
                             </button>
-                            <button type="button" class="action-button action-button--primary" data-share-student='${JSON.stringify(student)}'>
+                            <button type="button" class="action-button action-button--primary" data-share-id="${escapeHtml(String(student.id))}">
                                 Share
                             </button>
                         </div>
@@ -656,6 +656,7 @@ function initAdminPage() {
     const tableBody = document.getElementById("studentsTableBody");
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
+    let studentsById = new Map();
     let activeFilter = "all";
 
     async function loadStudents(successMessage = null) {
@@ -666,6 +667,7 @@ function initAdminPage() {
             students = await parseJsonResponse(
                 await authFetch("/students", { cache: "no-store" })
             );
+            studentsById = new Map(students.map((s) => [String(s.id), s]));
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, successMessage || `${students.length} Students Registered.`, "success");
@@ -682,14 +684,19 @@ function initAdminPage() {
         students = students.map((s) =>
             String(s.id) !== String(studentId) ? s : { ...s, ...updates }
         );
+        studentsById = new Map(students.map((s) => [String(s.id), s]));
     }
 
     tableBody.addEventListener("click", async (event) => {
-        const shareButton = event.target.closest("button[data-share-student]");
+        const shareButton = event.target.closest("button[data-share-id]");
 
         if (shareButton) {
             try {
-                const student = JSON.parse(shareButton.dataset.shareStudent);
+                const student = studentsById.get(String(shareButton.dataset.shareId));
+                if (!student) {
+                    alert("Unable to share QR.");
+                    return;
+                }
                 const qrUrl = window.location.origin + buildStudentQrUrl(student);
 
                 let phone = String(student.contact || "").replace(/\D/g, "");
@@ -758,6 +765,7 @@ function initAdminPage() {
                 await authFetch(`/student/${studentId}`, { method: "DELETE" })
             );
             students = students.filter((s) => String(s.id) !== String(studentId));
+            studentsById = new Map(students.map((s) => [String(s.id), s]));
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, data.message, "success");
