@@ -2,22 +2,58 @@
 // Global Variables
 // ======================================================
 
-let AUTH_PASSWORD = null;
 const page = document.body.dataset.page;
+const JWT_STORAGE_KEY = "jwt";
 
 // ======================================================
 // Common Utility Functions
 // ======================================================
 
-async function loadConfig() {
+function getAuthToken() {
+    return sessionStorage.getItem(JWT_STORAGE_KEY);
+}
+
+function clearAuthToken() {
+    sessionStorage.removeItem(JWT_STORAGE_KEY);
+}
+
+function decodeJwtPayload(token) {
     try {
-        const res = await fetch("/config");
-        if (!res.ok) throw new Error("Failed to load config");
-        const data = await res.json();
-        AUTH_PASSWORD = data.adminPassword;
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+        return JSON.parse(atob(padded));
     } catch (err) {
-        console.error("Could not load app config:", err);
+        return null;
     }
+}
+
+function isTokenExpired(token) {
+    const payload = decodeJwtPayload(token);
+    if (!payload || !payload.exp) return true;
+    return Date.now() >= payload.exp * 1000;
+}
+
+function wasPageRefreshed() {
+    const [entry] = performance.getEntriesByType("navigation");
+    return Boolean(entry && entry.type === "reload");
+}
+
+// Wraps fetch() to attach the admin JWT (when present) and to
+// automatically log the admin out if the server reports the
+// token is missing/invalid/expired.
+async function authFetch(url, options = {}) {
+    const token = getAuthToken();
+    const headers = new Headers(options.headers || {});
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401) {
+        clearAuthToken();
+        window.location.reload();
+        throw new Error("Session expired. Please log in again.");
+    }
+    return response;
 }
 
 function setMessage(element, message, type = "") {
@@ -169,9 +205,43 @@ function playScannerFeedback(status) {
 function enableSessionLockButtons() {
     document.querySelectorAll("[data-lock-session]").forEach((button) => {
         button.addEventListener("click", () => {
-            sessionStorage.removeItem("auth");
+            clearAuthToken();
             window.location.reload();
         });
+    });
+}
+
+// Shows the "Continue your session?" modal after a detected page
+// refresh while a still-valid JWT exists. Reuses the existing
+// auth-overlay / auth-card / glass-panel / primary-button /
+// secondary-button styling so no new CSS or redesign is needed.
+function showSessionContinueModal({ onContinue, onLogout }) {
+    document.getElementById("sessionContinueOverlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "sessionContinueOverlay";
+    overlay.className = "auth-overlay";
+    overlay.style.display = "flex";
+    overlay.innerHTML = `
+        <div class="auth-card glass-panel fade-scale">
+            <p class="section-tag">Session</p>
+            <h2>Continue your session?</h2>
+            <p class="section-copy">You refreshed the page. Your admin session is still active. Would you like to continue working?</p>
+            <div class="action-stack">
+                <button type="button" id="sessionContinueButton" class="primary-button primary-button--wide">Continue</button>
+                <button type="button" id="sessionLogoutButton" class="secondary-button secondary-button--wide">Logout</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    document.getElementById("sessionContinueButton").addEventListener("click", () => {
+        overlay.remove();
+        onContinue();
+    });
+    document.getElementById("sessionLogoutButton").addEventListener("click", () => {
+        overlay.remove();
+        onLogout();
     });
 }
 
@@ -181,6 +251,7 @@ function protectPage(onAuthorized) {
     const passwordInput = document.getElementById("authPassword");
     const error = document.getElementById("authError");
     const mainContent = document.getElementById("mainContent");
+    const submitButton = form?.querySelector('button[type="submit"]');
     let initialized = false;
 
     function showMainContent() {
@@ -217,25 +288,52 @@ function protectPage(onAuthorized) {
         return;
     }
 
-    if (sessionStorage.getItem("auth") === "true") {
-        showMainContent();
-        return;
+    const existingToken = getAuthToken();
+
+    if (existingToken && !isTokenExpired(existingToken)) {
+        if (wasPageRefreshed()) {
+            showSessionContinueModal({
+                onContinue: showMainContent,
+                onLogout: () => {
+                    clearAuthToken();
+                    showLoginOverlay();
+                },
+            });
+        } else {
+            showMainContent();
+        }
+    } else {
+        clearAuthToken();
+        showLoginOverlay();
     }
 
-    showLoginOverlay();
-
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (passwordInput.value === AUTH_PASSWORD) {
-            sessionStorage.setItem("auth", "true");
-            if (error) error.textContent = "";
-            showMainContent();
-            return;
-        }
+        if (error) error.textContent = "";
+        if (submitButton) submitButton.disabled = true;
 
-        sessionStorage.removeItem("auth");
-        if (error) error.textContent = "Incorrect Password";
-        passwordInput.select();
+        try {
+            const response = await fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: passwordInput.value }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Incorrect Password");
+            }
+
+            const data = await response.json();
+            sessionStorage.setItem(JWT_STORAGE_KEY, data.access_token);
+            passwordInput.value = "";
+            showMainContent();
+        } catch (err) {
+            clearAuthToken();
+            if (error) error.textContent = "Incorrect Password";
+            passwordInput.select();
+        } finally {
+            if (submitButton) submitButton.disabled = false;
+        }
     });
 }
 
@@ -566,7 +664,7 @@ function initAdminPage() {
 
         try {
             students = await parseJsonResponse(
-                await fetch("/students", { cache: "no-store" })
+                await authFetch("/students", { cache: "no-store" })
             );
             updateAdminStats(students);
             renderStudents(students, activeFilter);
@@ -636,7 +734,7 @@ function initAdminPage() {
         try {
             if (button.dataset.manualEntry) {
                 const data = await parseJsonResponse(
-                    await fetch(`/manual-entry/${studentId}`, { method: "POST" })
+                    await authFetch(`/manual-entry/${studentId}`, { method: "POST" })
                 );
                 updateStudentState(studentId, { is_used: true, entry_at: data.entry_at });
                 renderStudents(students, activeFilter);
@@ -647,7 +745,7 @@ function initAdminPage() {
 
             if (button.dataset.resetEntry) {
                 const data = await parseJsonResponse(
-                    await fetch(`/reset-entry/${studentId}`, { method: "POST" })
+                    await authFetch(`/reset-entry/${studentId}`, { method: "POST" })
                 );
                 updateStudentState(studentId, { is_used: false, entry_at: data.entry_at });
                 renderStudents(students, activeFilter);
@@ -657,7 +755,7 @@ function initAdminPage() {
             }
 
             const data = await parseJsonResponse(
-                await fetch(`/student/${studentId}`, { method: "DELETE" })
+                await authFetch(`/student/${studentId}`, { method: "DELETE" })
             );
             students = students.filter((s) => String(s.id) !== String(studentId));
             updateAdminStats(students);
@@ -701,7 +799,7 @@ function initAdminPage() {
 
         try {
             const data = await parseJsonResponse(
-                await fetch("/import", { method: "POST", body: formData })
+                await authFetch("/import", { method: "POST", body: formData })
             );
 
             const summary = `Imported ${data.imported} student(s), skipped ${data.skipped}.`;
@@ -718,13 +816,25 @@ function initAdminPage() {
         }
     });
 
-    downloadCsvButton?.addEventListener("click", () => {
-        const link = document.createElement("a");
-        link.href = "/export";
-        link.download = "students_export.csv";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+    downloadCsvButton?.addEventListener("click", async () => {
+        try {
+            const response = await authFetch("/export");
+            if (!response.ok) {
+                throw new Error("Failed to download the CSV export.");
+            }
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = "students_export.csv";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            setMessage(message, error.message, "error");
+        }
     });
 
     setActiveFilterButton(activeFilter);
@@ -747,8 +857,7 @@ function initAdminPage() {
 // Event Listeners
 // ======================================================
 
-document.addEventListener("DOMContentLoaded", async () => {
-    await loadConfig();
+document.addEventListener("DOMContentLoaded", () => {
     enableSessionLockButtons();
 
     if (page === "registration") {
