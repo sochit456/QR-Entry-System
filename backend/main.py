@@ -1,6 +1,5 @@
 import csv
 import io
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -15,10 +14,13 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.auth import create_access_token, require_admin, verify_admin_password
 from backend.database import Base, engine, get_db
 from backend.models import Student
 from backend.schemas import (
     EntryActionResponse,
+    LoginRequest,
+    LoginResponse,
     RegisterStudentRequest,
     RegisterStudentResponse,
     ResetEntryResponse,
@@ -108,15 +110,14 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.get("/config")
-def get_config():
-    password = os.getenv("ADMIN_PASSWORD")
-    if not password:
+@app.post("/login", response_model=LoginResponse)
+def login(payload: LoginRequest) -> LoginResponse:
+    if not verify_admin_password(payload.password):
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="ADMIN_PASSWORD environment variable is not set.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password.",
         )
-    return {"adminPassword": password}
+    return LoginResponse(access_token=create_access_token())
 
 
 @app.get("/qr/{token}")
@@ -126,7 +127,11 @@ def get_qr(token: str) -> StreamingResponse:
 
 
 @app.post("/import")
-async def import_students(file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict:
+async def import_students(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> dict:
     if not file.filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -291,7 +296,11 @@ def verify_qr(payload: VerifyQRRequest, db: Session = Depends(get_db)) -> Verify
 
 
 @app.post("/manual-entry/{student_id}", response_model=EntryActionResponse)
-def manual_entry(student_id: int, db: Session = Depends(get_db)) -> EntryActionResponse:
+def manual_entry(
+    student_id: int,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> EntryActionResponse:
     student = db.get(Student, student_id)
     if student is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found.")
@@ -323,7 +332,11 @@ def manual_entry(student_id: int, db: Session = Depends(get_db)) -> EntryActionR
 
 
 @app.post("/reset-entry/{student_id}", response_model=ResetEntryResponse)
-def reset_entry(student_id: int, db: Session = Depends(get_db)) -> ResetEntryResponse:
+def reset_entry(
+    student_id: int,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> ResetEntryResponse:
     student = db.get(Student, student_id)
     if student is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found.")
@@ -343,12 +356,18 @@ def reset_entry(student_id: int, db: Session = Depends(get_db)) -> ResetEntryRes
 
 
 @app.get("/students", response_model=List[StudentResponse])
-def get_students(db: Session = Depends(get_db)) -> List[StudentResponse]:
+def get_students(
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> List[StudentResponse]:
     return db.execute(select(Student).order_by(Student.created_at.desc())).scalars().all()
 
 
 @app.get("/export")
-def export_students(db: Session = Depends(get_db)) -> StreamingResponse:
+def export_students(
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> StreamingResponse:
     students = db.execute(select(Student).order_by(Student.created_at.desc())).scalars().all()
 
     def fmt(dt):
@@ -366,7 +385,11 @@ def export_students(db: Session = Depends(get_db)) -> StreamingResponse:
 
 
 @app.delete("/student/{student_id}")
-def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
+def delete_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> dict:
     student = db.get(Student, student_id)
     if student is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found.")
