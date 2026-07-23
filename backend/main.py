@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -68,15 +68,66 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# NOTE: allow_origins=["*"] together with allow_credentials=True is invalid
+# per the CORS spec (browsers will ignore the wildcard once credentials are
+# involved) and is unnecessary here since the frontend is served from the
+# same origin as the API. Restrict to same-origin usage; add specific
+# origins via an env var if this API is ever called from another domain.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://sochit.dpdns.org"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    # HSTS: force HTTPS for a year, including subdomains, and allow preload
+    # list submission. Safe here since Render serves this app over HTTPS
+    # only.
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    # Prevent this page (which contains a password prompt and student PII)
+    # from being embedded in a frame/iframe on another site (clickjacking).
+    response.headers["X-Frame-Options"] = "DENY"
+    # Stop browsers from MIME-sniffing responses away from the declared
+    # Content-Type.
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Don't leak the full referring URL (which may contain tokens/paths) to
+    # third-party sites.
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Baseline CSP: same-origin by default, but allow the html5-qrcode CDN
+    # script used by scanner.html and inline styles/scripts already used by
+    # the existing frontend. Tighten further if inline JS is ever removed.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'"
+    )
+    # Also block indexing at the HTTP-header level, as a second layer on
+    # top of the per-page <meta name="robots"> tags (covers any non-HTML
+    # responses like /qr/{token} images).
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def serve_robots_txt() -> PlainTextResponse:
+    # This app is a password-gated event check-in tool that handles student
+    # PII (name, roll number, contact number). It should never be indexed
+    # by search engines, so we disallow everything rather than publish a
+    # sitemap.
+    content = "User-agent: *\nDisallow: /\n"
+    return PlainTextResponse(content, media_type="text/plain")
 
 
 # Custom 404 Exception Handler
