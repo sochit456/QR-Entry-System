@@ -386,7 +386,7 @@ function applyAppConfig() {
             course.innerHTML = '<option value="" disabled>Select course / category</option>' + cfg.course_options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
             course.value = cfg.course_options.includes(selected) ? selected : "";
         }
-        renderCustomRegistrationFields(cfg.custom_fields || []);
+        renderCustomRegistrationFields(cfg.custom_fields || [], cfg.field_settings || {});
         const form = document.getElementById("registrationForm");
         if (form && cfg.registration_open === false) {
             form.querySelectorAll("input, select, button").forEach((el) => el.disabled = true);
@@ -403,57 +403,97 @@ function applyAppConfig() {
     document.title = `${cfg.event_name || "Entry Desk"} · ${page === "settings" ? "Settings" : page === "scanner" ? "Scanner" : page === "admin" ? "Dashboard" : "Registration"}`;
 }
 
-function renderCustomRegistrationFields(fields) {
+function renderCustomRegistrationFields(fields, coreSettings = {}) {
     const form = document.getElementById("registrationForm");
     if (!form) return;
-    form.querySelectorAll("[data-custom-registration-field]").forEach((node) => node.remove());
+    form.querySelectorAll("[data-custom-registration-field], [data-configurable-core-field]").forEach((node) => { if (node.dataset.configurableCoreField) node.remove(); else node.remove(); });
     const submit = document.getElementById("registrationSubmit");
-    fields.forEach((field) => {
-        if (!field || !field.key || !field.label) return;
-        const label = document.createElement("label");
-        label.className = "field";
-        label.dataset.customRegistrationField = "true";
-        label.append(document.createTextNode(field.label));
+    const makeInput = (field, key, isCore = false) => {
+        const wrapper = document.createElement("label");
+        wrapper.className = `field ${field.width === "half" ? "configured-half" : field.width === "third" ? "configured-third" : "configured-full"}`;
+        wrapper.dataset.customRegistrationField = isCore ? "false" : "true";
+        if (isCore) wrapper.dataset.configurableCoreField = key;
+        wrapper.append(document.createTextNode(field.label || key));
         let input;
-        if (field.type === "select") {
+        const type = field.type || "text";
+        if (type === "select") {
             input = document.createElement("select");
-            const placeholder = document.createElement("option");
-            placeholder.value = ""; placeholder.textContent = `Select ${field.label.toLowerCase()}`; placeholder.disabled = true; placeholder.selected = true;
-            input.append(placeholder);
-            (field.options || []).forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; input.append(option); });
+            const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = field.placeholder || `Select ${String(field.label || key).toLowerCase()}`; placeholder.disabled = true; placeholder.selected = true; input.append(placeholder);
+            const options = key === "course" ? (appConfig?.course_options || []) : (field.options || []);
+            options.forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; input.append(option); });
+        } else if (type === "textarea") {
+            input = document.createElement("textarea"); input.rows = 3;
         } else {
-            input = document.createElement("input");
-            input.type = ["text", "email", "tel", "number"].includes(field.type) ? field.type : "text";
+            input = document.createElement("input"); input.type = ["text","email","tel","number","date","url","checkbox"].includes(type) ? type : "text";
         }
-        input.name = `custom_${field.key}`;
-        input.dataset.customKey = field.key;
-        input.required = Boolean(field.required);
-        label.append(input);
-        form.insertBefore(label, submit);
-    });
+        input.name = isCore ? key : `custom_${key}`;
+        if (!isCore) input.dataset.customKey = key;
+        input.required = Boolean(field.required && type !== "checkbox");
+        input.placeholder = field.placeholder || "";
+        if (type === "checkbox") { input.value = "true"; input.required = Boolean(field.required); }
+        if (field.min_length) input.minLength = Number(field.min_length);
+        if (field.max_length) input.maxLength = Number(field.max_length);
+        if (field.min !== null && field.min !== undefined && field.min !== "") input.min = field.min;
+        if (field.max !== null && field.max !== undefined && field.max !== "") input.max = field.max;
+        if (field.pattern) input.pattern = field.pattern;
+        wrapper.append(input);
+        if (field.help_text) { const small = document.createElement("small"); small.textContent = field.help_text; wrapper.append(small); }
+        form.insertBefore(wrapper, submit);
+    };
+    const existingName = form.querySelector('input[name="name"]')?.closest("label");
+    const coreOrder = ["roll_no", "course", "contact"];
+    coreOrder.forEach((key) => { const original = form.querySelector(`[name="${key}"]`)?.closest("label"); if (original) original.remove(); const field = coreSettings[key] || ({roll_no:{label:"Roll number",type:"text",required:true,unique:true,width:"half",placeholder:"Enter roll number"},course:{label:"Course / category",type:"select",required:true,width:"half"},contact:{label:"Contact number",type:"tel",required:true,width:"full",placeholder:"Enter contact number"}})[key]; makeInput(field, key, true); });
+    fields.forEach((field) => { if (field && field.key && field.label) makeInput(field, field.key, false); });
 }
 
 function customFieldEditorRow(field = {}) {
-    const row = document.createElement("div");
-    row.className = "custom-field-row";
+    const row = document.createElement("div"); row.className = "custom-field-row";
     row.innerHTML = `
-        <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
+      <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
+      <div class="form-grid field-editor-grid">
         <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label>
-        <label class="field">Field key<input data-prop="key" maxlength="120" value="${escapeHtml(field.key || "")}" placeholder="Department / E-mail ID / Blood Group" required><small>Any characters or symbols are allowed. Keys must be unique.</small></label>
-        <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="email">Email address</option><option value="tel">Phone number</option><option value="number">Number</option><option value="select">Dropdown</option></select></label>
+        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required><small>Stable key; changing it won't rename existing saved data.</small></label>
+        <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="textarea">Long text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="date">Date</option><option value="url">Website URL</option><option value="select">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
+        <label class="field">Layout width<select data-prop="width"><option value="full">Full width</option><option value="half">Half width</option><option value="third">One-third width</option></select></label>
+        <label class="field">Placeholder<input data-prop="placeholder" maxlength="160" value="${escapeHtml(field.placeholder || "")}" placeholder="e.g. Enter department"></label>
+        <label class="field">Help text<input data-prop="help_text" maxlength="250" value="${escapeHtml(field.help_text || "")}" placeholder="Shown below the field"></label>
         <label class="field custom-options">Dropdown options<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce, Arts"><small>Separate options with commas.</small></label>
-        <label class="check-row custom-required"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required field</strong><small>Participants must fill this in.</small></span></label>
-        <p class="field-error" data-field-error role="status"></p>`;
+        <label class="field">Minimum length<input data-prop="min_length" type="number" min="0" max="500" value="${Number(field.min_length || 0)}"></label>
+        <label class="field">Maximum length<input data-prop="max_length" type="number" min="1" max="5000" value="${Number(field.max_length || 250)}"></label>
+        <label class="field">Minimum value<input data-prop="min" type="number" step="any" value="${field.min ?? ""}" placeholder="No minimum"></label>
+        <label class="field">Maximum value<input data-prop="max" type="number" step="any" value="${field.max ?? ""}" placeholder="No maximum"></label>
+        <label class="field">Custom validation pattern<input data-prop="pattern" maxlength="200" value="${escapeHtml(field.pattern || "")}" placeholder="e.g. [A-Z0-9]+"><small>Regular expression; leave blank for no custom pattern.</small></label>
+      </div>
+      <div class="field-rule-toggles">
+        <label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required</strong><small>Must be filled.</small></span></label>
+        <label class="check-row"><input data-prop="unique" type="checkbox" ${field.unique ? "checked" : ""}><span><strong>Unique / no duplicates</strong><small>Reject an already registered value.</small></span></label>
+        <label class="check-row"><input data-prop="search" type="checkbox" ${field.search ? "checked" : ""}><span><strong>Use for student search</strong><small>Must also be unique. Only one field is used.</small></span></label>
+      </div><p class="field-error" data-field-error role="status"></p>`;
     row.querySelector('[data-prop="type"]').value = field.type || "text";
-    const options = row.querySelector(".custom-options");
-    const updateType = () => { options.hidden = row.querySelector('[data-prop="type"]').value !== "select"; };
+    row.querySelector('[data-prop="width"]').value = field.width || "full";
+    const updateType = () => { row.querySelector(".custom-options").hidden = row.querySelector('[data-prop="type"]').value !== "select"; const numeric = row.querySelectorAll('[data-prop="min"], [data-prop="max"]'); numeric.forEach(el => el.closest("label").hidden = row.querySelector('[data-prop="type"]').value !== "number"); };
     row.querySelector('[data-prop="type"]').addEventListener("change", () => { updateType(); markSettingsDirty(); });
-    row.querySelectorAll("input, select").forEach((control) => control.addEventListener("input", () => { row.classList.remove("has-error"); markSettingsDirty(); updateSettingsPreview(); }));
-    row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); });
-    updateType();
-    return row;
+    row.querySelectorAll("input, select").forEach(control => control.addEventListener("input", () => { row.classList.remove("has-error"); if (control.dataset.prop === "search" && control.checked) { document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other => { if (other !== control) other.checked = false; }); document.querySelectorAll('#coreFieldSettingsEditor [data-prop="search"]').forEach(other => other.checked = false); row.querySelector('[data-prop="unique"]').checked = true; } if (control.dataset.prop === "unique" && !control.checked) row.querySelector('[data-prop="search"]').checked = false; markSettingsDirty(); updateSettingsPreview(); }));
+    row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); }); updateType(); return row;
 }
 
+const CORE_FIELD_DEFAULTS = {
+  roll_no:{label:"Roll number",type:"text",required:true,unique:true,search:true,placeholder:"Enter roll number",help_text:"",min_length:1,max_length:50,pattern:"",width:"half"},
+  course:{label:"Course / category",type:"select",required:true,unique:false,search:false,placeholder:"Select course / category",help_text:"",min_length:0,max_length:120,pattern:"",width:"half"},
+  contact:{label:"Contact number",type:"tel",required:true,unique:false,search:false,placeholder:"Enter contact number",help_text:"",min_length:0,max_length:50,pattern:"",width:"full"}
+};
+function coreFieldEditorRow(key, settings = {}) {
+  const field = {...CORE_FIELD_DEFAULTS[key], ...settings}; const row=document.createElement("div"); row.className="custom-field-row core-field-row"; row.dataset.coreKey=key;
+  row.innerHTML=`<div class="custom-field-top"><span class="custom-field-number">${escapeHtml(field.label)} <small>(key: ${key})</small></span><span class="count-pill">Built-in</span></div><div class="form-grid field-editor-grid">
+  <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label)}"></label>
+  <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="textarea">Long text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="date">Date</option><option value="url">Website URL</option><option value="select">Dropdown</option></select></label>
+  <label class="field">Layout width<select data-prop="width"><option value="full">Full width</option><option value="half">Half width</option><option value="third">One-third width</option></select></label>
+  <label class="field">Placeholder<input data-prop="placeholder" maxlength="160" value="${escapeHtml(field.placeholder || "")}"></label><label class="field">Help text<input data-prop="help_text" maxlength="250" value="${escapeHtml(field.help_text || "")}"></label>
+  <label class="field">Minimum length<input data-prop="min_length" type="number" min="0" max="500" value="${field.min_length || 0}"></label><label class="field">Maximum length<input data-prop="max_length" type="number" min="1" max="5000" value="${field.max_length || 250}"></label><label class="field">Minimum value<input data-prop="min" type="number" step="any" value="${field.min ?? ""}" placeholder="No minimum"></label><label class="field">Maximum value<input data-prop="max" type="number" step="any" value="${field.max ?? ""}" placeholder="No maximum"></label><label class="field">Validation pattern<input data-prop="pattern" maxlength="200" value="${escapeHtml(field.pattern || "")}" placeholder="Regular expression"></label></div>
+  <div class="field-rule-toggles"><label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required</strong></span></label><label class="check-row"><input data-prop="unique" type="checkbox" ${field.unique ? "checked" : ""}><span><strong>Unique / no duplicates</strong></span></label><label class="check-row"><input data-prop="search" type="checkbox" ${field.search ? "checked" : ""}><span><strong>Use for student search</strong></span></label></div><p class="field-error" data-field-error role="status"></p>`;
+  row.querySelector('[data-prop="type"]').value=field.type; row.querySelector('[data-prop="width"]').value=field.width;
+  row.querySelectorAll("input,select").forEach(control=>control.addEventListener("input",()=>{if(control.dataset.prop==="search"&&control.checked){row.querySelector('[data-prop="unique"]').checked=true;document.querySelectorAll('#coreFieldSettingsEditor [data-prop="search"],#customFieldsEditor [data-prop="search"]').forEach(other=>{if(other!==control)other.checked=false;});}if(control.dataset.prop==="unique"&&!control.checked)row.querySelector('[data-prop="search"]').checked=false;markSettingsDirty();})); return row;
+}
 let settingsInitialSnapshot = "";
 let settingsIsDirty = false;
 function settingsSnapshot(form, editor) {
@@ -461,13 +501,12 @@ function settingsSnapshot(form, editor) {
     ["event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme"].forEach((key) => payload[key] = form.elements.namedItem(key).value);
     ["registration_open", "scanner_sound", "scanner_vibration"].forEach((key) => payload[key] = form.elements.namedItem(key).checked);
     payload.course_options = form.elements.namedItem("course_options").value.split("\n").map((x) => x.trim()).filter(Boolean);
-    payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => ({
-        label: row.querySelector('[data-prop="label"]').value.trim(),
-        key: row.querySelector('[data-prop="key"]').value.trim(),
-        type: row.querySelector('[data-prop="type"]').value,
-        options: row.querySelector('[data-prop="options"]').value.split(",").map((x) => x.trim()).filter(Boolean),
-        required: row.querySelector('[data-prop="required"]').checked,
-    }));
+    payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => {
+        const get = (key) => row.querySelector(`[data-prop="${key}"]`);
+        return {label:get("label").value.trim(),key:get("key").value.trim(),type:get("type").value,options:(get("options")?.value || "").split(",").map(x=>x.trim()).filter(Boolean),required:get("required").checked,unique:get("unique").checked,search:get("search").checked,placeholder:get("placeholder").value,help_text:get("help_text").value,min_length:Number(get("min_length").value||0),max_length:Number(get("max_length").value||250),min:get("min")?.value || null,max:get("max")?.value || null,pattern:get("pattern").value,width:get("width").value};
+    });
+    payload.field_settings = {};
+    document.querySelectorAll("#coreFieldSettingsEditor .core-field-row").forEach(row => { const key=row.dataset.coreKey; const get=prop=>row.querySelector(`[data-prop="${prop}"]`); payload.field_settings[key]={label:get("label").value.trim(),type:get("type").value,width:get("width").value,placeholder:get("placeholder").value,help_text:get("help_text").value,min_length:Number(get("min_length").value||0),max_length:Number(get("max_length").value||250),pattern:get("pattern").value,required:get("required").checked,unique:get("unique").checked,search:get("search").checked}; });
     return payload;
 }
 
@@ -491,7 +530,7 @@ function updateCustomFieldCount() {
     const count = document.querySelectorAll("#customFieldsEditor .custom-field-row").length;
     const target = document.getElementById("customFieldCount");
     if (target) target.textContent = `${count} ${count === 1 ? "field" : "fields"}`;
-    document.querySelectorAll(".custom-field-number").forEach((node, index) => node.textContent = `Custom field ${index + 1}`);
+    document.querySelectorAll("#customFieldsEditor .custom-field-number").forEach((node, index) => node.textContent = `Custom field ${index + 1}`);
 }
 
 function updateSettingsPreview() {
@@ -558,6 +597,8 @@ function populateSettingsForm(form, editor, config) {
         else if (control.type !== "file") control.value = value ?? "";
     });
     editor.replaceChildren();
+    const coreEditor=document.getElementById("coreFieldSettingsEditor");
+    if(coreEditor){coreEditor.replaceChildren(); Object.keys(CORE_FIELD_DEFAULTS).forEach(key=>coreEditor.append(coreFieldEditorRow(key,(config.field_settings||{})[key]||{})));}
     (config.custom_fields || []).forEach((field) => editor.append(customFieldEditorRow(field)));
     updateCustomFieldCount();
     updateSettingsPreview();
@@ -632,6 +673,11 @@ async function initSettingsPage() {
             invalidRow.querySelector("input:invalid")?.focus();
             return;
         }
+        const allRows = [...document.querySelectorAll("#coreFieldSettingsEditor .core-field-row, #customFieldsEditor .custom-field-row")];
+        const selectedSearch = allRows.filter(row => row.querySelector('[data-prop="search"]')?.checked);
+        if (selectedSearch.length > 1) { setMessage(message, "Choose only one student search field.", "error"); return; }
+        selectedSearch.forEach(row => { row.querySelector('[data-prop="unique"]').checked = true; });
+        if (!allRows.some(row => row.querySelector('[data-prop="unique"]')?.checked)) { setMessage(message, "At least one field other than Name must be unique.", "error"); return; }
         const courseOptions = [...new Set(payload.course_options)];
         if (!courseOptions.length) {
             setMessage(message, "Add at least one course or category option.", "error");
@@ -689,7 +735,7 @@ function initRegistrationPage() {
         const formData = new FormData(form);
         const rawPayload = Object.fromEntries(formData.entries());
         const extraData = {};
-        form.querySelectorAll("[data-custom-key]").forEach((input) => { extraData[input.dataset.customKey] = rawPayload[input.name] || ""; delete rawPayload[input.name]; });
+        form.querySelectorAll("[data-custom-key]").forEach((input) => { extraData[input.dataset.customKey] = input.type === "checkbox" ? input.checked : (rawPayload[input.name] || ""); delete rawPayload[input.name]; });
         const payload = { ...rawPayload, extra_data: extraData };
         showTicketDetails(payload);
 
@@ -904,12 +950,15 @@ function initScannerPage() {
 // Admin Page
 // ======================================================
 
+let adminSearchField = "roll_no";
+let adminFieldLabels = {roll_no:"Roll number"};
+function studentFieldValue(student, key) { return key === "roll_no" || key === "course" || key === "contact" || key === "name" ? student[key] : (student.extra_data || {})[key]; }
 function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-
     const filteredStudents = students.filter((student) => {
-        const matchesSearch = student.roll_no.toLowerCase().includes(searchValue);
+        const searchText = String(studentFieldValue(student, adminSearchField) ?? "").toLowerCase();
+        const matchesSearch = searchText.includes(searchValue);
         const matchesFilter =
             activeFilter === "all" ||
             (activeFilter === "used" && student.is_used) ||
@@ -930,7 +979,7 @@ function renderStudents(students, activeFilter) {
                 : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
             return `
                 <tr>
-                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value ?? "").trim()).map(([key, value]) => `<small class="student-extra-field"><span class="student-extra-key">${escapeHtml(key)}:</span> ${escapeHtml(value)}</small>`).join("")}</td>
+                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value || "").trim()).map(([key, value]) => `<small>${escapeHtml(adminFieldLabels[key] || key.replaceAll("_", " "))}: ${escapeHtml(value)}</small>`).join("")}</td>
                     <td>${escapeHtml(student.contact)}</td>
                     <td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td>
                     <td>
@@ -992,9 +1041,17 @@ function initAdminPage() {
         refreshButton.disabled = true;
 
         try {
-            students = await parseJsonResponse(
-                await authFetch("/students", { cache: "no-store" })
-            );
+            const [studentData, publicConfig] = await Promise.all([
+                authFetch("/students", { cache: "no-store" }).then(parseJsonResponse),
+                fetch("/public-config", { cache: "no-store" }).then(parseJsonResponse)
+            ]);
+            students = studentData;
+            adminSearchField = publicConfig.search_field || "roll_no";
+            const core = publicConfig.field_settings || {};
+            const custom = publicConfig.custom_fields || [];
+            adminFieldLabels = {...Object.fromEntries(Object.entries(core).map(([k,v])=>[k,v.label||k])), ...Object.fromEntries(custom.map(f=>[f.key,f.label||f.key]))};
+            searchRoll.placeholder = `Search by ${adminFieldLabels[adminSearchField] || adminSearchField}`;
+            searchRoll.setAttribute("aria-label", searchRoll.placeholder);
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, successMessage || `${students.length} students registered.`, "success");

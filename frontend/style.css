@@ -62,7 +62,7 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.015em;line-height:1.15}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 .field{display:grid;gap:6px;font-size:.9rem;font-weight:600}
-.form-grid{display:grid;gap:16px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 input,select{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-weight:400}
 input::placeholder{color:var(--ink-2);opacity:.75}
@@ -156,9 +156,7 @@ td{padding:12px 16px;border-top:1px solid var(--line);vertical-align:middle;font
 tbody tr:first-child td{border-top:0}
 tbody tr:hover{background:var(--surface-2)}
 .student strong{display:block}
-.student small{display:block;color:var(--ink-2);white-space:normal;overflow-wrap:anywhere;line-height:1.5;margin-top:5px}
-.student .student-extra-field{max-width: min(100%, 34rem)}
-.student .student-extra-key{font-weight:600;color:var(--ink)}
+.student small{color:var(--ink-2)}
 .when{color:var(--ink-2);white-space:nowrap;font-size:.85rem}
 .badge{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:99px;font-size:.8rem;font-weight:600;white-space:nowrap}
 .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -304,3 +302,18 @@ tbody tr:hover{background:var(--surface-2)}
 @media(max-width:1020px){.settings-layout{grid-template-columns:minmax(0,1fr) 250px;gap:16px}.settings-section{padding:20px}.settings-aside{top:78px}}
 @media(max-width:800px){.settings-layout{grid-template-columns:1fr}.settings-aside{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}.settings-aside .aside-card:last-child{grid-column:1/-1}.settings-status{align-self:flex-start}}
 @media(max-width:600px){.settings-page{padding-top:22px}.settings-page-head{align-items:flex-start;gap:12px}.settings-status{font-size:.75rem}.settings-section{padding:17px;gap:17px}.section-heading{gap:10px}.section-icon{width:36px;height:36px}.brand-preview{flex-wrap:wrap}.preview-button{margin-left:56px}.custom-field-row{grid-template-columns:minmax(0,1fr);padding:14px}.custom-field-top,.custom-field-row .check-row,.field-error{grid-column:1}.settings-aside{grid-template-columns:1fr}.settings-aside .aside-card:last-child{grid-column:auto}.settings-savebar{position:static;align-items:stretch;flex-direction:column}.save-buttons{display:grid;grid-template-columns:1fr}.settings-savebar .btn{width:100%}.settings-savebar .inline-message{flex-basis:auto}}
+
+/* Configurable field builder */
+.field-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:12px}
+.field-rule-toggles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.field-rule-toggles .check-row{padding:12px;border:1px solid var(--line);border-radius:12px;align-items:flex-start}
+.field-rule-toggles .check-row strong{font-size:.88rem}
+.field-rule-toggles .check-row small{display:block;margin-top:3px}
+.core-field-row{border-color:var(--brand-tint)}
+.configured-full{grid-column:1/-1}
+.configured-half{grid-column:span 1}
+.configured-third{grid-column:span 1}
+@media(max-width:650px){.field-editor-grid,.field-rule-toggles{grid-template-columns:minmax(0,1fr)}.configured-full,.configured-half,.configured-third{grid-column:1/-1}}
+
+#registrationForm > label.field:first-child,#registrationForm > #registrationSubmit{grid-column:1/-1}
+@media(max-width:650px){#registrationForm.form-grid{grid-template-columns:minmax(0,1fr)}}
