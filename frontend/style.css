@@ -156,7 +156,9 @@ td{padding:12px 16px;border-top:1px solid var(--line);vertical-align:middle;font
 tbody tr:first-child td{border-top:0}
 tbody tr:hover{background:var(--surface-2)}
 .student strong{display:block}
-.student small{color:var(--ink-2)}
+.student small{display:block;color:var(--ink-2);white-space:normal;overflow-wrap:anywhere;line-height:1.5;margin-top:5px}
+.student .student-extra-field{max-width: min(100%, 34rem)}
+.student .student-extra-key{font-weight:600;color:var(--ink)}
 .when{color:var(--ink-2);white-space:nowrap;font-size:.85rem}
 .badge{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:99px;font-size:.8rem;font-weight:600;white-space:nowrap}
 .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}

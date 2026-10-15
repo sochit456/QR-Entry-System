@@ -439,7 +439,7 @@ function customFieldEditorRow(field = {}) {
     row.innerHTML = `
         <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
         <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label>
-        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required><small>Lowercase letters, numbers, and underscores; start with a letter.</small></label>
+        <label class="field">Field key<input data-prop="key" maxlength="120" value="${escapeHtml(field.key || "")}" placeholder="Department / E-mail ID / Blood Group" required><small>Any characters or symbols are allowed. Keys must be unique.</small></label>
         <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="email">Email address</option><option value="tel">Phone number</option><option value="number">Number</option><option value="select">Dropdown</option></select></label>
         <label class="field custom-options">Dropdown options<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce, Arts"><small>Separate options with commas.</small></label>
         <label class="check-row custom-required"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required field</strong><small>Participants must fill this in.</small></span></label>
@@ -930,7 +930,7 @@ function renderStudents(students, activeFilter) {
                 : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
             return `
                 <tr>
-                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value || "").trim()).map(([key, value]) => `<small>${escapeHtml(key.replaceAll("_", " "))}: ${escapeHtml(value)}</small>`).join("")}</td>
+                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value ?? "").trim()).map(([key, value]) => `<small class="student-extra-field"><span class="student-extra-key">${escapeHtml(key)}:</span> ${escapeHtml(value)}</small>`).join("")}</td>
                     <td>${escapeHtml(student.contact)}</td>
                     <td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td>
                     <td>
