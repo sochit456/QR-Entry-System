@@ -444,7 +444,7 @@ function customFieldEditorRow(field = {}) {
       <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
       <div class="form-grid field-editor-grid">
         <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label>
-        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required><small>Stable key; changing it won't rename existing saved data.</small></label>
+        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[A-Z][A-Za-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="Department" required><small>Stable key; changing it won't rename existing saved data.</small></label>
         <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="textarea">Long text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="date">Date</option><option value="url">Website URL</option><option value="select">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
         <label class="field">Layout width<select data-prop="width"><option value="full">Full width</option><option value="half">Half width</option><option value="third">One-third width</option></select></label>
         <label class="field">Placeholder<input data-prop="placeholder" maxlength="160" value="${escapeHtml(field.placeholder || "")}" placeholder="e.g. Enter department"></label>
@@ -465,6 +465,10 @@ function customFieldEditorRow(field = {}) {
     row.querySelector('[data-prop="width"]').value = field.width || "full";
     const updateType = () => { row.querySelector(".custom-options").hidden = row.querySelector('[data-prop="type"]').value !== "select"; const numeric = row.querySelectorAll('[data-prop="min"], [data-prop="max"]'); numeric.forEach(el => el.closest("label").hidden = row.querySelector('[data-prop="type"]').value !== "number"); };
     row.querySelector('[data-prop="type"]').addEventListener("change", () => { updateType(); markSettingsDirty(); });
+    const keyInputEl = row.querySelector('[data-prop="key"]');
+    const capitalizeKey = () => { const v = keyInputEl.value.replace(/[^A-Za-z0-9_]/g, ""); const fixed = v.charAt(0).toUpperCase() + v.slice(1); if (fixed !== keyInputEl.value) keyInputEl.value = fixed; };
+    keyInputEl.addEventListener("input", capitalizeKey);
+    capitalizeKey();
     row.querySelectorAll("input, select").forEach(control => control.addEventListener("input", () => { row.classList.remove("has-error"); if (control.dataset.prop === "search" && control.checked) { document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other => { if (other !== control) other.checked = false; }); document.querySelectorAll('#coreFieldSettingsEditor [data-prop="search"]').forEach(other => other.checked = false); row.querySelector('[data-prop="unique"]').checked = true; } if (control.dataset.prop === "unique" && !control.checked) row.querySelector('[data-prop="search"]').checked = false; markSettingsDirty(); updateSettingsPreview(); }));
     row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); }); updateType(); return row;
 }
@@ -669,12 +673,12 @@ async function initSettingsPage() {
             row.classList.remove("has-error"); errorNode.textContent = "";
             if (!labelInput.value.trim() || !keyInput.checkValidity()) {
                 errorNode.textContent = "Add a label and a valid field key."; invalidRow = row;
-            } else if (keys.has(keyInput.value.trim())) {
+            } else if (keys.has(keyInput.value.trim().toLowerCase())) {
                 errorNode.textContent = "Each field key must be unique."; invalidRow = row;
             } else if (type === "select" && !optionsText.split(",").some((option) => option.trim())) {
                 errorNode.textContent = "Add at least one dropdown option."; invalidRow = row;
             }
-            keys.add(keyInput.value.trim());
+            keys.add(keyInput.value.trim().toLowerCase());
             if (invalidRow) { row.classList.add("has-error"); break; }
         }
         if (invalidRow) {
@@ -976,7 +980,7 @@ function renderStudents(students, activeFilter) {
     }
     tableBody.innerHTML = filteredStudents.map(student => {
         const qrUrl = buildStudentQrUrl(student);
-        const action = student.is_used ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>` : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Enter</button>`;
+        const action = student.is_used ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>` : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
         const dynamicCells = columns.map(col => `<td>${escapeHtml(studentFieldValue(student, col.key) ?? "") || "—"}</td>`).join("");
         return `<tr>${dynamicCells}<td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td><td><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when">${escapeHtml(formatDate(student.created_at))}</td><td class="when">${escapeHtml(formatDate(student.entry_at))}</td><td><div class="row-actions">${action}<button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
     }).join("");
