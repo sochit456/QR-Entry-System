@@ -174,3 +174,14 @@ Settings include:
 Settings are persisted in the `app_settings` database table. Extra registration values are stored as JSON in each student's `extra_data` field and included in CSV exports. Existing student fields and records are retained. The backend enforces the registration-open switch, valid course/category choices, and required custom fields; the UI alone is not relied on for these checks.
 
 The settings API is `GET /api/settings` and `PUT /api/settings` (admin-authenticated). `GET /public-config` exposes only the event settings needed by public-facing pages.
+
+### UI/UX improvements in the refined Option A build
+- Settings are grouped into clearer sections with a live event summary and branding preview.
+- The save area shows unsaved/saved state; navigation prompts before losing unsaved changes.
+- Discard changes reloads the last saved configuration from the server.
+- Custom fields have clearer labels, unique-key validation, dropdown-option validation, a field count, and a mobile-friendly layout.
+- Theme and brand color preview update while editing; the brand button text adjusts for contrast.
+- Save errors remain visible, and settings cannot be saved if the course/category list is empty.
+- The backend rejects duplicate custom-field keys and dropdown fields without options instead of silently ignoring malformed fields.
+
+After replacing the project files, restart the FastAPI app and hard-refresh the browser (Ctrl+F5 on Windows/Linux) so the updated CSS and JavaScript are loaded. Existing database records and the current event settings are retained.
