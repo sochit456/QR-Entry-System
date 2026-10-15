@@ -380,13 +380,7 @@ function applyAppConfig() {
             const eventMeta = [cfg.event_date, cfg.event_location].filter(Boolean).join(" · ");
             description.textContent = [cfg.event_description || "Register to receive a QR entry pass.", eventMeta].filter(Boolean).join(" · ");
         }
-        const course = document.querySelector('select[name="course"]');
-        if (course && Array.isArray(cfg.course_options)) {
-            const selected = course.value;
-            course.innerHTML = '<option value="" disabled>Select course / category</option>' + cfg.course_options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
-            course.value = cfg.course_options.includes(selected) ? selected : "";
-        }
-        renderCustomRegistrationFields(cfg.custom_fields || [], cfg.field_settings || {});
+        renderCustomRegistrationFields(cfg.custom_fields || [], {});
         const form = document.getElementById("registrationForm");
         if (form && cfg.registration_open === false) {
             form.querySelectorAll("input, select, button").forEach((el) => el.disabled = true);
@@ -419,7 +413,7 @@ function renderCustomRegistrationFields(fields, coreSettings = {}) {
         if (type === "select") {
             input = document.createElement("select");
             const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = field.placeholder || `Select ${String(field.label || key).toLowerCase()}`; placeholder.disabled = true; placeholder.selected = true; input.append(placeholder);
-            const options = key === "course" ? (appConfig?.course_options || []) : (field.options || []);
+            const options = field.options || [];
             options.forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; input.append(option); });
         } else if (type === "textarea") {
             input = document.createElement("textarea"); input.rows = 3;
@@ -441,8 +435,6 @@ function renderCustomRegistrationFields(fields, coreSettings = {}) {
         form.insertBefore(wrapper, submit);
     };
     const existingName = form.querySelector('input[name="name"]')?.closest("label");
-    const coreOrder = ["roll_no", "course", "contact"];
-    coreOrder.forEach((key) => { const original = form.querySelector(`[name="${key}"]`)?.closest("label"); if (original) original.remove(); const field = coreSettings[key] || ({roll_no:{label:"Roll number",type:"text",required:true,unique:true,width:"half",placeholder:"Enter roll number"},course:{label:"Course / category",type:"select",required:true,width:"half"},contact:{label:"Contact number",type:"tel",required:true,width:"full",placeholder:"Enter contact number"}})[key]; makeInput(field, key, true); });
     fields.forEach((field) => { if (field && field.key && field.label) makeInput(field, field.key, false); });
 }
 
@@ -492,7 +484,7 @@ function coreFieldEditorRow(key, settings = {}) {
   <label class="field">Minimum length<input data-prop="min_length" type="number" min="0" max="500" value="${field.min_length || 0}"></label><label class="field">Maximum length<input data-prop="max_length" type="number" min="1" max="5000" value="${field.max_length || 250}"></label><label class="field">Minimum value<input data-prop="min" type="number" step="any" value="${field.min ?? ""}" placeholder="No minimum"></label><label class="field">Maximum value<input data-prop="max" type="number" step="any" value="${field.max ?? ""}" placeholder="No maximum"></label><label class="field">Validation pattern<input data-prop="pattern" maxlength="200" value="${escapeHtml(field.pattern || "")}" placeholder="Regular expression"></label></div>
   <div class="field-rule-toggles"><label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required</strong></span></label><label class="check-row"><input data-prop="unique" type="checkbox" ${field.unique ? "checked" : ""}><span><strong>Unique / no duplicates</strong></span></label><label class="check-row"><input data-prop="search" type="checkbox" ${field.search ? "checked" : ""}><span><strong>Use for student search</strong></span></label></div><p class="field-error" data-field-error role="status"></p>`;
   row.querySelector('[data-prop="type"]').value=field.type; row.querySelector('[data-prop="width"]').value=field.width;
-  row.querySelectorAll("input,select").forEach(control=>control.addEventListener("input",()=>{if(control.dataset.prop==="search"&&control.checked){row.querySelector('[data-prop="unique"]').checked=true;document.querySelectorAll('#coreFieldSettingsEditor [data-prop="search"],#customFieldsEditor [data-prop="search"]').forEach(other=>{if(other!==control)other.checked=false;});}if(control.dataset.prop==="unique"&&!control.checked)row.querySelector('[data-prop="search"]').checked=false;markSettingsDirty();})); return row;
+  row.querySelectorAll("input,select").forEach(control=>control.addEventListener("input",()=>{if(control.dataset.prop==="search"&&control.checked){row.querySelector('[data-prop="unique"]').checked=true;document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other=>{if(other!==control)other.checked=false;});}if(control.dataset.prop==="unique"&&!control.checked)row.querySelector('[data-prop="search"]').checked=false;markSettingsDirty();})); return row;
 }
 let settingsInitialSnapshot = "";
 let settingsIsDirty = false;
@@ -500,13 +492,10 @@ function settingsSnapshot(form, editor) {
     const payload = {};
     ["event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme"].forEach((key) => payload[key] = form.elements.namedItem(key).value);
     ["registration_open", "scanner_sound", "scanner_vibration"].forEach((key) => payload[key] = form.elements.namedItem(key).checked);
-    payload.course_options = form.elements.namedItem("course_options").value.split("\n").map((x) => x.trim()).filter(Boolean);
     payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => {
         const get = (key) => row.querySelector(`[data-prop="${key}"]`);
         return {label:get("label").value.trim(),key:get("key").value.trim(),type:get("type").value,options:(get("options")?.value || "").split(",").map(x=>x.trim()).filter(Boolean),required:get("required").checked,unique:get("unique").checked,search:get("search").checked,placeholder:get("placeholder").value,help_text:get("help_text").value,min_length:Number(get("min_length").value||0),max_length:Number(get("max_length").value||250),min:get("min")?.value || null,max:get("max")?.value || null,pattern:get("pattern").value,width:get("width").value};
     });
-    payload.field_settings = {};
-    document.querySelectorAll("#coreFieldSettingsEditor .core-field-row").forEach(row => { const key=row.dataset.coreKey; const get=prop=>row.querySelector(`[data-prop="${prop}"]`); payload.field_settings[key]={label:get("label").value.trim(),type:get("type").value,width:get("width").value,placeholder:get("placeholder").value,help_text:get("help_text").value,min_length:Number(get("min_length").value||0),max_length:Number(get("max_length").value||250),pattern:get("pattern").value,required:get("required").checked,unique:get("unique").checked,search:get("search").checked}; });
     return payload;
 }
 
@@ -597,8 +586,6 @@ function populateSettingsForm(form, editor, config) {
         else if (control.type !== "file") control.value = value ?? "";
     });
     editor.replaceChildren();
-    const coreEditor=document.getElementById("coreFieldSettingsEditor");
-    if(coreEditor){coreEditor.replaceChildren(); Object.keys(CORE_FIELD_DEFAULTS).forEach(key=>coreEditor.append(coreFieldEditorRow(key,(config.field_settings||{})[key]||{})));}
     (config.custom_fields || []).forEach((field) => editor.append(customFieldEditorRow(field)));
     updateCustomFieldCount();
     updateSettingsPreview();
@@ -607,12 +594,35 @@ function populateSettingsForm(form, editor, config) {
     markSettingsDirty();
 }
 
+function initSettingsAccordion() {
+    const sections = [...document.querySelectorAll("#settingsForm > .settings-section")];
+    if (!sections.length) return;
+    sections.forEach((section, index) => {
+        const heading = section.querySelector(":scope > .section-heading");
+        if (!heading) return;
+        const body = [...section.children].filter(node => node !== heading);
+        const toggle = document.createElement("button");
+        toggle.type = "button"; toggle.className = "settings-accordion-trigger";
+        toggle.setAttribute("aria-expanded", index === 0 ? "true" : "false");
+        toggle.innerHTML = '<span class="accordion-chevron" aria-hidden="true">⌄</span>';
+        heading.append(toggle); heading.classList.add("accordion-heading");
+        body.forEach(node => node.classList.add("settings-accordion-content"));
+        section.classList.toggle("is-collapsed", index !== 0);
+        toggle.addEventListener("click", () => {
+            const shouldOpen = section.classList.contains("is-collapsed");
+            sections.forEach(other => { other.classList.add("is-collapsed"); other.querySelector(".settings-accordion-trigger")?.setAttribute("aria-expanded", "false"); });
+            if (shouldOpen) { section.classList.remove("is-collapsed"); toggle.setAttribute("aria-expanded", "true"); }
+        });
+    });
+}
+
 async function initSettingsPage() {
     const form = document.getElementById("settingsForm");
     if (!form) return;
     const message = document.getElementById("settingsMessage");
     const editor = document.getElementById("customFieldsEditor");
     const saveButton = document.getElementById("saveSettingsButton");
+    initSettingsAccordion();
     try {
         const config = await parseJsonResponse(await authFetch("/api/settings", { cache: "no-store" }));
         populateSettingsForm(form, editor, config);
@@ -673,18 +683,11 @@ async function initSettingsPage() {
             invalidRow.querySelector("input:invalid")?.focus();
             return;
         }
-        const allRows = [...document.querySelectorAll("#coreFieldSettingsEditor .core-field-row, #customFieldsEditor .custom-field-row")];
+        const allRows = [...document.querySelectorAll("#customFieldsEditor .custom-field-row")];
         const selectedSearch = allRows.filter(row => row.querySelector('[data-prop="search"]')?.checked);
         if (selectedSearch.length > 1) { setMessage(message, "Choose only one student search field.", "error"); return; }
         selectedSearch.forEach(row => { row.querySelector('[data-prop="unique"]').checked = true; });
-        if (!allRows.some(row => row.querySelector('[data-prop="unique"]')?.checked)) { setMessage(message, "At least one field other than Name must be unique.", "error"); return; }
-        const courseOptions = [...new Set(payload.course_options)];
-        if (!courseOptions.length) {
-            setMessage(message, "Add at least one course or category option.", "error");
-            form.elements.namedItem("course_options").focus();
-            return;
-        }
-        payload.course_options = courseOptions;
+        if (allRows.length && !allRows.some(row => row.querySelector('[data-prop="unique"]')?.checked)) { setMessage(message, "Mark at least one field as unique so the dashboard can search records reliably.", "error"); return; }
         setButtonLoading(saveButton, true, "Saving...");
         saveButton.disabled = true;
         try {
@@ -707,7 +710,7 @@ function initRegistrationPage() {
     const qrImage = document.getElementById("qrImage");
     const downloadButton = document.getElementById("downloadQrButton");
 
-    const ticketFields = { name: "ticketName", roll_no: "ticketRoll", course: "ticketCourse" };
+    const ticketFields = { name: "ticketName" };
     function showTicketDetails(values) {
         Object.entries(ticketFields).forEach(([key, id]) => {
             const node = document.getElementById(id);
@@ -736,7 +739,7 @@ function initRegistrationPage() {
         const rawPayload = Object.fromEntries(formData.entries());
         const extraData = {};
         form.querySelectorAll("[data-custom-key]").forEach((input) => { extraData[input.dataset.customKey] = input.type === "checkbox" ? input.checked : (rawPayload[input.name] || ""); delete rawPayload[input.name]; });
-        const payload = { ...rawPayload, extra_data: extraData };
+        const payload = { name: rawPayload.name || "", extra_data: extraData };
         showTicketDetails(payload);
 
         try {
@@ -950,60 +953,33 @@ function initScannerPage() {
 // Admin Page
 // ======================================================
 
-let adminSearchField = "roll_no";
-let adminFieldLabels = {roll_no:"Roll number"};
-function studentFieldValue(student, key) { return key === "roll_no" || key === "course" || key === "contact" || key === "name" ? student[key] : (student.extra_data || {})[key]; }
+let adminSearchField = "";
+let adminFieldLabels = {};
+let adminFields = [];
+function studentFieldValue(student, key) { if (key === "name") return student.name; const extra = (student.extra_data || {})[key]; return extra !== undefined && extra !== null && extra !== "" ? extra : (key === "roll_no" || key === "course" || key === "contact" ? student[key] : extra); }
 function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
+    const tableHead = document.getElementById("studentsTableHead");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-    const filteredStudents = students.filter((student) => {
+    const columns = [{key:"name", label:"Name"}, ...adminFields.map(field => ({key:field.key, label:field.label || field.key}))];
+    if (tableHead) tableHead.innerHTML = [...columns.map(col => `<th>${escapeHtml(col.label)}</th>`), "<th>Status</th>", "<th>QR</th>", "<th>Registered</th>", "<th>Entered</th>", "<th>Actions</th>"].join("");
+    const filteredStudents = students.filter(student => {
         const searchText = String(studentFieldValue(student, adminSearchField) ?? "").toLowerCase();
-        const matchesSearch = searchText.includes(searchValue);
-        const matchesFilter =
-            activeFilter === "all" ||
-            (activeFilter === "used" && student.is_used) ||
-            (activeFilter === "not-used" && !student.is_used);
+        const matchesSearch = !searchValue || searchText.includes(searchValue);
+        const matchesFilter = activeFilter === "all" || (activeFilter === "used" && student.is_used) || (activeFilter === "not-used" && !student.is_used);
         return matchesSearch && matchesFilter;
     });
-
+    const colSpan = columns.length + 5;
     if (!filteredStudents.length) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No students match this search or filter.</td></tr>';
+        tableBody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">No students match this search or filter.</td></tr>`;
         return;
     }
-
-    tableBody.innerHTML = filteredStudents
-        .map((student) => {
-            const qrUrl = buildStudentQrUrl(student);
-            const action = student.is_used
-                ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>`
-                : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
-            return `
-                <tr>
-                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value || "").trim()).map(([key, value]) => `<small>${escapeHtml(adminFieldLabels[key] || key.replaceAll("_", " "))}: ${escapeHtml(value)}</small>`).join("")}</td>
-                    <td>${escapeHtml(student.contact)}</td>
-                    <td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td>
-                    <td>
-                        <a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener">
-                            <img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}">
-                        </a>
-                    </td>
-                    <td class="when">${escapeHtml(formatDate(student.created_at))}</td>
-                    <td class="when">${escapeHtml(formatDate(student.entry_at))}</td>
-                    <td>
-                        <div class="row-actions">
-                            ${action}
-                            <button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg>
-                            </button>
-                            <button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        })
-        .join("");
+    tableBody.innerHTML = filteredStudents.map(student => {
+        const qrUrl = buildStudentQrUrl(student);
+        const action = student.is_used ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>` : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
+        const dynamicCells = columns.map(col => `<td>${escapeHtml(studentFieldValue(student, col.key) ?? "") || "—"}</td>`).join("");
+        return `<tr>${dynamicCells}<td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td><td><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when">${escapeHtml(formatDate(student.created_at))}</td><td class="when">${escapeHtml(formatDate(student.entry_at))}</td><td><div class="row-actions">${action}<button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
+    }).join("");
 }
 
 function updateAdminStats(students) {
@@ -1046,10 +1022,9 @@ function initAdminPage() {
                 fetch("/public-config", { cache: "no-store" }).then(parseJsonResponse)
             ]);
             students = studentData;
-            adminSearchField = publicConfig.search_field || "roll_no";
-            const core = publicConfig.field_settings || {};
-            const custom = publicConfig.custom_fields || [];
-            adminFieldLabels = {...Object.fromEntries(Object.entries(core).map(([k,v])=>[k,v.label||k])), ...Object.fromEntries(custom.map(f=>[f.key,f.label||f.key]))};
+            adminFields = publicConfig.custom_fields || [];
+            adminSearchField = publicConfig.search_field || (adminFields.find(f => f.unique)?.key || "name");
+            adminFieldLabels = Object.fromEntries(adminFields.map(f=>[f.key,f.label||f.key]));
             searchRoll.placeholder = `Search by ${adminFieldLabels[adminSearchField] || adminSearchField}`;
             searchRoll.setAttribute("aria-label", searchRoll.placeholder);
             updateAdminStats(students);

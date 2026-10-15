@@ -65,13 +65,10 @@
                     <section class="panel settings-section" id="registrationSection">
                         <div class="section-heading"><span class="section-icon" aria-hidden="true">☷</span><div><h2>Registration</h2><p>Control whether people can register and which options they can choose.</p></div></div>
                         <label class="check-row setting-toggle"><input name="registration_open" type="checkbox"><span><strong>Accept new registrations</strong><small>Turn this off to close the registration form. Existing records remain unchanged.</small></span><span class="toggle-visual" aria-hidden="true"></span></label>
-                        <label class="field" id="courseOptionsControl">Course / category options <small>These appear when the Course / category field uses a dropdown input.</small><textarea name="course_options" rows="4" placeholder="BCA 1st&#10;BCA 2nd&#10;BCA 3rd&#10;PGDCA"></textarea></label>
-                        <div class="subsection-heading"><div><h3>Built-in fields</h3><p>Every field except Name can be configured. Mark a field unique to prevent duplicates; the unique field is used automatically for dashboard search.</p></div></div>
-                        <div id="coreFieldSettingsEditor" class="custom-fields-editor"></div>
-                        <div class="subsection-heading"><div><h3>Custom registration fields</h3><p>Define input type, size, validation, required rules, uniqueness, and layout for each additional field.</p></div><span class="count-pill" id="customFieldCount">0 fields</span></div>
+                        <div class="subsection-heading"><div><h3>Registration fields</h3><p>Name is the only built-in field. Add every other field you need. The dashboard columns and search adapt to these fields.</p></div><span class="count-pill" id="customFieldCount">0 fields</span></div>
                         <div id="customFieldsEditor" class="custom-fields-editor"></div>
                         <button type="button" id="addCustomField" class="btn add-field-button">＋ Add custom field</button>
-                        <p class="helper-note">Name is fixed and cannot be edited. Roll number, course, contact, and custom fields can be configured. Unique fields reject duplicates and power the dashboard search automatically.</p>
+                        <p class="helper-note">Name is always required. Mark one field as unique and searchable; duplicate values will be rejected by the server.</p>
                     </section>
 
                     <section class="panel settings-section" id="scannerSection">

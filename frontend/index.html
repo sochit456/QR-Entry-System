@@ -42,23 +42,6 @@
                         <label class="field">Full name
                             <input type="text" name="name" autocomplete="off" required>
                         </label>
-                        <div class="form-row">
-                            <label class="field">Roll number
-                                <input type="text" name="roll_no" pattern="[0-9]+" inputmode="numeric" maxlength="15" placeholder="Digits only" required>
-                            </label>
-                            <label class="field">Course
-                                <select name="course" id="course" required>
-                                    <option value="" disabled selected>Select course</option>
-                                    <option value="BCA 1st">BCA 1st</option>
-                                    <option value="BCA 2nd">BCA 2nd</option>
-                                    <option value="BCA 3rd">BCA 3rd</option>
-                                    <option value="PGDCA">PGDCA</option>
-                                </select>
-                            </label>
-                        </div>
-                        <label class="field">Contact number
-                            <input name="contact" type="tel" maxlength="10" pattern="[0-9]{10}" inputmode="numeric" placeholder="10-digit mobile number" required>
-                        </label>
                         <button id="registrationSubmit" type="submit" class="btn btn--primary btn--block">
                             <span class="button-label">Issue QR pass</span>
                             <span class="button-loader" aria-hidden="true"></span>
@@ -76,8 +59,7 @@
                         <div class="qr-box"><span>The QR appears here once the pass is issued.</span><img id="qrImage" alt="Generated QR code"></div>
                         <dl class="ticket-fields">
                             <div><dt>Name</dt><dd id="ticketName" class="is-empty">—</dd></div>
-                            <div><dt>Roll number</dt><dd id="ticketRoll" class="is-empty">—</dd></div>
-                            <div><dt>Course</dt><dd id="ticketCourse" class="is-empty">—</dd></div>
+                            <div id="ticketDynamicFields"></div>
                         </dl>
                     </div>
                     <div class="ticket-tear"></div>

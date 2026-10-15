@@ -317,3 +317,16 @@ tbody tr:hover{background:var(--surface-2)}
 
 #registrationForm > label.field:first-child,#registrationForm > #registrationSubmit{grid-column:1/-1}
 @media(max-width:650px){#registrationForm.form-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Single-open settings accordion */
+.settings-section.is-collapsed{gap:0;padding-bottom:18px}
+.settings-section.is-collapsed>.settings-accordion-content{display:none!important}
+.settings-section>.section-heading.accordion-heading{display:flex;align-items:center;cursor:default;margin-bottom:0}
+.settings-accordion-trigger{margin-left:auto;flex:0 0 38px;width:38px;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.settings-accordion-trigger:hover{border-color:var(--brand)}
+.accordion-chevron{font-size:1.25rem;line-height:1;transition:transform .18s ease}
+.settings-accordion-trigger[aria-expanded="true"] .accordion-chevron{transform:rotate(180deg)}
+.settings-section.is-collapsed .section-heading{padding-bottom:0}
+.settings-accordion-content{margin-top:20px}
+#studentsTableHead th{white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.accordion-chevron{transition:none}}
