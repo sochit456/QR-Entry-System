@@ -195,3 +195,24 @@ tbody tr:hover{background:var(--surface-2)}
   table{min-width:760px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Event configuration (Option A) */
+.settings-form{display:grid;gap:16px;max-width:900px}
+.settings-section{padding:22px;display:grid;gap:16px}
+.settings-section h2{font-size:1.2rem}
+.settings-section h3{font-size:1rem;margin-top:6px}
+.settings-section .field small,.check-row small{display:block;color:var(--ink-2);font-size:.82rem;font-weight:400;margin-top:3px}
+.settings-section textarea{width:100%;resize:vertical;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);padding:11px 12px;min-height:88px}
+.settings-section input[type="color"]{height:44px;padding:4px;width:100%;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.check-row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;cursor:pointer}
+.check-row input{margin-top:5px;width:18px;height:18px;accent-color:var(--brand);flex:none}
+.check-row span{display:block}
+.custom-fields-editor{display:grid;gap:12px}
+.custom-field-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.custom-field-row .check-row{align-self:center}
+.custom-field-row [hidden]{display:none!important}
+.settings-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.settings-actions .inline-message{flex:1}
+.lock-row{margin-top:20px}
+.muted{color:var(--ink-2);font-size:.9rem}
+@media(max-width:650px){.settings-section{padding:16px}.custom-field-row{grid-template-columns:minmax(0,1fr)}.settings-actions{align-items:stretch;flex-direction:column}.settings-actions .btn{width:100%}}

@@ -32,24 +32,39 @@
             </div>
         </header>
         <div class="page">
-            <div class="page-head"><div>
-                <h1>Settings</h1>
-                <p>Preferences for this device.</p>
-            </div></div>
-            <div class="settings">
-                <section class="panel setting-row">
-                    <div><h2>Theme</h2><p>Match your device, or pick light or dark.</p></div>
-                    <select id="themeSelect" class="theme-select" aria-label="Theme">
-                        <option value="system">Match device</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
+            <div class="page-head"><div><h1>Event settings</h1><p>Change these settings once; the registration page and scanner will use them.</p></div></div>
+            <form id="settingsForm" class="settings-form">
+                <section class="panel settings-section">
+                    <h2>Event details</h2>
+                    <div class="form-grid">
+                        <label class="field">Event name<input name="event_name" maxlength="200" required></label>
+                        <label class="field">Organization name<input name="organization_name" maxlength="200"></label>
+                        <div class="form-row"><label class="field">Event date<input name="event_date" type="date"></label><label class="field">Location<input name="event_location" maxlength="200"></label></div>
+                        <label class="field">Registration page description<textarea name="event_description" rows="3" maxlength="500"></textarea></label>
+                        <label class="field">Logo image URL<input name="logo_url" placeholder="/static/logo.png"><small>Use an image path served by this app, such as /static/logo.png.</small></label>
+                    </div>
                 </section>
-                <section class="panel setting-row">
-                    <div><h2>Lock this device</h2><p>The password is required again to open any page.</p></div>
-                    <button type="button" class="btn" data-lock-session>Lock now</button>
+                <section class="panel settings-section">
+                    <h2>Appearance</h2>
+                    <div class="form-row"><label class="field">Theme<select name="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label class="field">Primary color<input name="brand_color" type="color" value="#0b6fb8"></label></div>
                 </section>
-            </div>
+                <section class="panel settings-section">
+                    <h2>Registration</h2>
+                    <label class="check-row"><input name="registration_open" type="checkbox"> <span><strong>Registration is open</strong><small>Turn this off to stop new registrations.</small></span></label>
+                    <label class="field">Course / category options <small>Enter one option per line.</small><textarea name="course_options" rows="4" placeholder="BCA 1st&#10;BCA 2nd&#10;BCA 3rd&#10;PGDCA"></textarea></label>
+                    <h3>Custom registration fields</h3>
+                    <p class="muted">Add extra fields for this event. Core fields (name, roll number, course, contact) remain available for existing reports.</p>
+                    <div id="customFieldsEditor" class="custom-fields-editor"></div>
+                    <button type="button" id="addCustomField" class="btn">+ Add custom field</button>
+                </section>
+                <section class="panel settings-section">
+                    <h2>QR scanner feedback</h2>
+                    <label class="check-row"><input name="scanner_sound" type="checkbox"><span><strong>Sound feedback</strong><small>Play a tone for scan results.</small></span></label>
+                    <label class="check-row"><input name="scanner_vibration" type="checkbox"><span><strong>Vibration feedback</strong><small>Vibrate on supported devices.</small></span></label>
+                </section>
+                <div class="settings-actions"><button type="submit" id="saveSettingsButton" class="btn btn--primary"><span class="button-label">Save settings</span><span class="button-loader" aria-hidden="true"></span></button><span id="settingsMessage" class="inline-message" aria-live="polite"></span></div>
+            </form>
+            <section class="panel setting-row lock-row"><div><h2>Lock this device</h2><p>The password is required again to open any page.</p></div><button type="button" class="btn" data-lock-session>Lock now</button></section>
         </div>
     </div>
 

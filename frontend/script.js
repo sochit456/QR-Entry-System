@@ -176,26 +176,29 @@ function vibratePattern(pattern) {
 }
 
 function playScannerFeedback(status) {
+    if (appConfig && appConfig.scanner_sound === false && appConfig.scanner_vibration === false) return;
+    const soundEnabled = !appConfig || appConfig.scanner_sound !== false;
+    const vibrationEnabled = !appConfig || appConfig.scanner_vibration !== false;
     if (status === "VALID") {
-        playToneSequence([{ frequency: 880, duration: 0.1, gap: 0.02 }]);
-        vibratePattern(80);
+        if (soundEnabled) playToneSequence([{ frequency: 880, duration: 0.1, gap: 0.02 }]);
+        if (vibrationEnabled) vibratePattern(80);
         return;
     }
 
     if (status === "USED") {
-        playToneSequence([
+        if (soundEnabled) playToneSequence([
             { frequency: 540, duration: 0.1, gap: 0.03 },
             { frequency: 420, duration: 0.12, gap: 0.02 },
         ]);
-        vibratePattern(180);
+        if (vibrationEnabled) vibratePattern(180);
         return;
     }
 
-    playToneSequence([
+    if (soundEnabled) playToneSequence([
         { frequency: 240, duration: 0.12, type: "square", gap: 0.03 },
         { frequency: 180, duration: 0.24, type: "square", gap: 0.02 },
     ]);
-    vibratePattern(320);
+    if (vibrationEnabled) vibratePattern(320);
 }
 
 // Powers the "Lock Page" button on the Settings page (and any other
@@ -339,6 +342,151 @@ function protectPage(onAuthorized) {
 // Registration Page
 // ======================================================
 
+let appConfig = null;
+
+async function loadPublicConfig() {
+    try {
+        const response = await fetch("/public-config", { cache: "no-store" });
+        if (response.ok) appConfig = await response.json();
+    } catch (error) {
+        console.warn("Could not load event settings; using page defaults.", error);
+    }
+    applyAppConfig();
+}
+
+function applyAppConfig() {
+    if (!appConfig) return;
+    const cfg = appConfig;
+    document.documentElement.style.setProperty("--brand", cfg.brand_color || "#0b6fb8");
+    document.documentElement.style.setProperty("--brand-hover", cfg.brand_color || "#0b6fb8");
+    document.documentElement.style.setProperty("--brand-tint", `${cfg.brand_color || "#0b6fb8"}20`);
+    if (cfg.theme) applyTheme(cfg.theme);
+    document.querySelectorAll(".brand").forEach((brand) => {
+        const img = brand.querySelector("img");
+        if (img && cfg.logo_url) img.src = cfg.logo_url;
+        const textNode = [...brand.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+        if (textNode) textNode.textContent = ` ${cfg.event_name || "Entry Desk"}`;
+    });
+    document.querySelectorAll(".ticket-head img, .auth-card > img").forEach((img) => {
+        if (cfg.logo_url) img.src = cfg.logo_url;
+    });
+    document.querySelectorAll(".ticket-head strong").forEach((node) => node.textContent = cfg.event_name || "Event");
+    document.querySelectorAll(".ticket-head span").forEach((node) => node.textContent = cfg.organization_name || "");
+    if (page === "registration") {
+        const heading = document.querySelector(".page-head h1");
+        const description = document.querySelector(".page-head p");
+        if (heading) heading.textContent = cfg.event_name || "Register a participant";
+        if (description) {
+            const eventMeta = [cfg.event_date, cfg.event_location].filter(Boolean).join(" · ");
+            description.textContent = [cfg.event_description || "Register to receive a QR entry pass.", eventMeta].filter(Boolean).join(" · ");
+        }
+        const course = document.querySelector('select[name="course"]');
+        if (course && Array.isArray(cfg.course_options)) {
+            const selected = course.value;
+            course.innerHTML = '<option value="" disabled>Select course / category</option>' + cfg.course_options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+            course.value = cfg.course_options.includes(selected) ? selected : "";
+        }
+        renderCustomRegistrationFields(cfg.custom_fields || []);
+        const form = document.getElementById("registrationForm");
+        if (form && cfg.registration_open === false) {
+            form.querySelectorAll("input, select, button").forEach((el) => el.disabled = true);
+            const message = document.getElementById("registrationMessage");
+            if (message) setMessage(message, "Registration is currently closed.", "error");
+        }
+    }
+    if (page === "scanner") {
+        const heading = document.querySelector(".page-head h1");
+        const description = document.querySelector(".page-head p");
+        if (heading) heading.textContent = `${cfg.event_name || "Event"} — QR scanner`;
+        if (description) description.textContent = "Point the camera at a participant's QR pass to verify entry.";
+    }
+    document.title = `${cfg.event_name || "Entry Desk"} · ${page === "settings" ? "Settings" : page === "scanner" ? "Scanner" : page === "admin" ? "Dashboard" : "Registration"}`;
+}
+
+function renderCustomRegistrationFields(fields) {
+    const form = document.getElementById("registrationForm");
+    if (!form) return;
+    form.querySelectorAll("[data-custom-registration-field]").forEach((node) => node.remove());
+    const submit = document.getElementById("registrationSubmit");
+    fields.forEach((field) => {
+        if (!field || !field.key || !field.label) return;
+        const label = document.createElement("label");
+        label.className = "field";
+        label.dataset.customRegistrationField = "true";
+        label.append(document.createTextNode(field.label));
+        let input;
+        if (field.type === "select") {
+            input = document.createElement("select");
+            const placeholder = document.createElement("option");
+            placeholder.value = ""; placeholder.textContent = `Select ${field.label.toLowerCase()}`; placeholder.disabled = true; placeholder.selected = true;
+            input.append(placeholder);
+            (field.options || []).forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; input.append(option); });
+        } else {
+            input = document.createElement("input");
+            input.type = ["text", "email", "tel", "number"].includes(field.type) ? field.type : "text";
+        }
+        input.name = `custom_${field.key}`;
+        input.dataset.customKey = field.key;
+        input.required = Boolean(field.required);
+        label.append(input);
+        form.insertBefore(label, submit);
+    });
+}
+
+function customFieldEditorRow(field = {}) {
+    const row = document.createElement("div");
+    row.className = "custom-field-row";
+    row.innerHTML = `<label class="field">Label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label><label class="field">Key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required></label><label class="field">Type<select data-prop="type"><option value="text">Text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="select">Dropdown</option></select></label><label class="field custom-options">Options (comma separated)<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce"></label><label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span>Required</span></label><button type="button" class="btn btn--sm" data-remove-field>Remove</button>`;
+    row.querySelector('[data-prop="type"]').value = field.type || "text";
+    row.querySelector('[data-prop="type"]').addEventListener("change", (event) => row.querySelector(".custom-options").hidden = event.target.value !== "select");
+    row.querySelector(".custom-options").hidden = (field.type || "text") !== "select";
+    row.querySelector("[data-remove-field]").addEventListener("click", () => row.remove());
+    return row;
+}
+
+async function initSettingsPage() {
+    const form = document.getElementById("settingsForm");
+    if (!form) return;
+    const message = document.getElementById("settingsMessage");
+    const editor = document.getElementById("customFieldsEditor");
+    try {
+        const config = await parseJsonResponse(await authFetch("/api/settings", { cache: "no-store" }));
+        Object.entries(config).forEach(([key, value]) => {
+            const control = form.elements.namedItem(key);
+            if (!control) return;
+            if (control.type === "checkbox") control.checked = Boolean(value);
+            else if (key === "course_options") control.value = (value || []).join("\n");
+            else if (control.type !== "file") control.value = value ?? "";
+        });
+        (config.custom_fields || []).forEach((field) => editor.append(customFieldEditorRow(field)));
+    } catch (error) {
+        setMessage(message, `Could not load settings: ${error.message}`, "error");
+    }
+    document.getElementById("addCustomField").addEventListener("click", () => editor.append(customFieldEditorRow()));
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = document.getElementById("saveSettingsButton");
+        setButtonLoading(button, true, "Saving...");
+        const payload = {};
+        ["event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme"].forEach((key) => payload[key] = form.elements.namedItem(key).value);
+        ["registration_open", "scanner_sound", "scanner_vibration"].forEach((key) => payload[key] = form.elements.namedItem(key).checked);
+        payload.course_options = form.elements.namedItem("course_options").value.split("\n").map((x) => x.trim()).filter(Boolean);
+        payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => ({
+            label: row.querySelector('[data-prop="label"]').value.trim(),
+            key: row.querySelector('[data-prop="key"]').value.trim(),
+            type: row.querySelector('[data-prop="type"]').value,
+            options: row.querySelector('[data-prop="options"]').value.split(",").map((x) => x.trim()).filter(Boolean),
+            required: row.querySelector('[data-prop="required"]').checked,
+        }));
+        try {
+            const saved = await parseJsonResponse(await authFetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }));
+            appConfig = saved; applyAppConfig();
+            setMessage(message, "Settings saved. The event pages will use the new configuration.", "success");
+        } catch (error) { setMessage(message, error.message, "error"); }
+        finally { setButtonLoading(button, false); }
+    });
+}
+
 function initRegistrationPage() {
     const form = document.getElementById("registrationForm");
     const message = document.getElementById("registrationMessage");
@@ -374,7 +522,10 @@ function initRegistrationPage() {
         setButtonLoading(submitButton, true, "Issuing pass…");
 
         const formData = new FormData(form);
-        const payload = Object.fromEntries(formData.entries());
+        const rawPayload = Object.fromEntries(formData.entries());
+        const extraData = {};
+        form.querySelectorAll("[data-custom-key]").forEach((input) => { extraData[input.dataset.customKey] = rawPayload[input.name] || ""; delete rawPayload[input.name]; });
+        const payload = { ...rawPayload, extra_data: extraData };
         showTicketDetails(payload);
 
         try {
@@ -614,7 +765,7 @@ function renderStudents(students, activeFilter) {
                 : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
             return `
                 <tr>
-                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small></td>
+                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small>${Object.entries(student.extra_data || {}).filter(([, value]) => String(value || "").trim()).map(([key, value]) => `<small>${escapeHtml(key.replaceAll("_", " "))}: ${escapeHtml(value)}</small>`).join("")}</td>
                     <td>${escapeHtml(student.contact)}</td>
                     <td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td>
                     <td>
@@ -870,8 +1021,9 @@ function initAdminPage() {
 // Event Listeners
 // ======================================================
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     enableSessionLockButtons();
+    await loadPublicConfig();
 
     if (page === "registration") {
         protectPage(initRegistrationPage);
@@ -879,10 +1031,8 @@ document.addEventListener("DOMContentLoaded", () => {
         protectPage(initScannerPage);
     } else if (page === "admin") {
         protectPage(initAdminPage);
-    } else if (document.getElementById("loginOverlay") && document.getElementById("mainContent")) {
-        // Any other protected page (e.g. settings) just needs the shared
-        // auth gate; it has no page-specific init logic of its own.
-        protectPage(() => {});
+    } else if (page === "settings") {
+        protectPage(initSettingsPage);
     }
 });
 
