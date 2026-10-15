@@ -135,13 +135,14 @@ def clean_settings(payload: dict) -> dict:
     for item in fields:
         if not isinstance(item, dict):
             raise HTTPException(status_code=400, detail="Each custom field must be a valid object.")
-        key = str(item.get("key", "")).strip().lower()
+        key = str(item.get("key", "")).strip()
+        key = key[:1].upper() + key[1:]  # first letter uppercase, rest kept as typed
         label = str(item.get("label", "")).strip()[:80]
-        if not __import__("re").fullmatch(r"[a-z][a-z0-9_]{0,39}", key) or key in reserved_keys or not label:
+        if not __import__("re").fullmatch(r"[A-Z][A-Za-z0-9_]{0,39}", key) or key.lower() in reserved_keys or not label:
             raise HTTPException(status_code=400, detail="Each custom field needs a label and a valid, non-reserved key.")
-        if key in seen_keys:
+        if key.lower() in seen_keys:
             raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated.")
-        seen_keys.add(key)
+        seen_keys.add(key.lower())
         field_type = item.get("type") if item.get("type") in allowed_types else "text"
         raw_options = item.get("options", [])
         if not isinstance(raw_options, list): raw_options = []
