@@ -35,7 +35,7 @@
             <div class="page-head">
                 <div>
                     <h1>Dashboard</h1>
-                    <p>Track check-ins live and manage the guest list.</p>
+                    <p>Track Live Entry and manage the guest list.</p>
                 </div>
                 <div class="page-actions">
                     <input id="importCsvInput" type="file" accept=".csv" style="display: none;">
@@ -48,8 +48,8 @@
             <section class="summary" aria-label="Entry summary">
                 <div class="summary-grid">
                     <div class="summary-item"><span>Registered</span><strong id="statTotal">0</strong></div>
-                    <div class="summary-item"><span>Checked in</span><strong id="statUsed">0</strong></div>
-                    <div class="summary-item"><span>Yet to enter</span><strong id="statRemaining">0</strong></div>
+                    <div class="summary-item"><span>Entered</span><strong id="statUsed">0</strong></div>
+                    <div class="summary-item"><span>Yet to Enter</span><strong id="statRemaining">0</strong></div>
                 </div>
                 <div class="summary-bar">
                     <div><span>Attendance</span><span id="statPercent">0%</span></div>
@@ -61,8 +61,8 @@
                 <input id="searchRoll" type="search" placeholder="Search by unique field" aria-label="Search by roll number">
                 <div class="segmented" role="group" aria-label="Filter by status">
                     <button type="button" class="filter-chip active" data-filter="all">All</button>
-                    <button type="button" class="filter-chip" data-filter="used">Checked in</button>
-                    <button type="button" class="filter-chip" data-filter="not-used">Not entered</button>
+                    <button type="button" class="filter-chip" data-filter="used">Entered</button>
+                    <button type="button" class="filter-chip" data-filter="not-used">Not Entered</button>
                 </div>
             </div>
             <div id="adminMessage" class="inline-message" aria-live="polite"></div>
