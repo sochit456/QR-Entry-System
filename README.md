@@ -185,3 +185,12 @@ The settings API is `GET /api/settings` and `PUT /api/settings` (admin-authentic
 - The backend rejects duplicate custom-field keys and dropdown fields without options instead of silently ignoring malformed fields.
 
 After replacing the project files, restart the FastAPI app and hard-refresh the browser (Ctrl+F5 on Windows/Linux) so the updated CSS and JavaScript are loaded. Existing database records and the current event settings are retained.
+
+
+## Configurable registration fields (Option A update)
+
+The Settings page now supports editing the built-in fields other than **Name** and configuring custom fields. Field options include input type, label, placeholder, help text, layout width, required status, uniqueness, minimum/maximum length, numeric minimum/maximum, and a custom regular-expression pattern. Dropdown options can be configured for custom fields and the Course / category field.
+
+Mark a field **Unique / no duplicates** to reject values already used by another registration. Choose **Use for student search** on one unique field to make it the dashboard's automatic search key. If no search field is explicitly chosen, the first unique field is used. The Name field is intentionally fixed.
+
+The backend validates field values during registration as well as the browser, so bypassing the form does not bypass the configured validation rules. Back up your database before updating the project, then test registration, duplicate handling, and dashboard search with sample records before using it at a live event.
