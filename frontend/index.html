@@ -3,156 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Entry System</title>
+    <title>Register a student · Entry Desk</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body data-page="registration" class="protected-page">
     <div id="loginOverlay" class="auth-overlay" style="display: none;">
-        <div class="auth-card glass-panel fade-scale">
-            <p class="section-tag">Restricted Page</p>
-            <h2>Authorized Access Only</h2>
-            <p class="section-copy">Authentication required. Please enter the password to continue.</p>
+        <div class="auth-card">
+            <img src="/static/logo.png" alt="">
+            <h2>Unlock the entry desk</h2>
+            <p>Enter the staff password to continue.</p>
             <form id="authForm" class="auth-form">
-                <label class="input-group">
-                    <span>Password</span>
-                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                <label class="field">Password
+                    <input id="authPassword" type="password" autocomplete="current-password" required>
                 </label>
-                <button type="submit" class="primary-button primary-button--wide">Continue</button>
+                <button type="submit" class="btn btn--primary btn--block">Unlock</button>
                 <div id="authError" class="auth-error" aria-live="polite"></div>
             </form>
         </div>
     </div>
 
     <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
-        <div class="page-shell page-shell--centered">
-            <header class="hero hero--split">
-                <div class="hero-copy-block fade-up">
-                    <p class="eyebrow">Modern Event Check-In</p>
-                    <h1>🎉 College Event Entry System</h1>
-                    <p class="hero-copy">Register students in seconds, issue secure QR passes, and keep the entry flow smooth for large event crowds.</p>
-                    <div class="nav-chips">
-                        <a class="nav-chip nav-chip--active" href="/">Registration</a>
-                        <a class="nav-chip" href="/scanner">Scanner</a>
-                        <a class="nav-chip" href="/admin">Admin</a>
-                        <a class="nav-chip" href="/settings">Settings</a>
-                    </div>
-                </div>
-            </header>
-
-            <main class="registration-grid">
-                <section class="glass-panel info-panel fade-up">
-                    <p class="section-tag">Quick Setup</p>
-                    <h2>Register and get your QR pass</h2>
-                    <p class="section-copy">Each registration generates a single-use QR linked to a unique token. Students only need to show the code at the gate.</p>
-                    <div class="feature-list">
-                        <div class="feature-item">
-                            <strong>Fast registration</strong>
-                            <span>Minimal fields and instant QR generation.</span>
-                        </div>
-                        <div class="feature-item">
-                            <strong>Single-use entry</strong>
-                            <span>Designed to stop duplicate scans at the gate.</span>
-                        </div>
-                        <div class="feature-item">
-                            <strong>Mobile-ready</strong>
-                            <span>Works smoothly for volunteers and organizers on phones.</span>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="glass-panel form-panel fade-up fade-up--delay">
-                    <div class="panel-heading">
-                        <p class="section-tag">Registration Form</p>
-                        <h2>Student Details</h2>
-                    </div>
-
+        <header class="app-bar">
+            <div class="app-bar-inner">
+                <a class="brand" href="/"><img src="/static/logo.png" alt="">Entry Desk</a>
+                <nav class="app-nav" aria-label="Main"><a href="/" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
+            </div>
+        </header>
+        <div class="page">
+            <div class="page-head"><div>
+                <h1>Register a student</h1>
+                <p>Fill in the details to issue a single-use QR pass for the gate.</p>
+            </div></div>
+            <div class="reg-layout">
+                <section class="panel">
                     <form id="registrationForm" class="form-grid">
-                        <label class="input-group">
-                            <span>Name</span>
-                            <input type="text" name="name" placeholder="Enter full name" pattern="[A-Za-z]+(\s[A-Za-z]+)*" title="Name cannot contain special characters." maxlength="120" required>
+                        <label class="field">Full name
+                            <input type="text" name="name" autocomplete="off" required>
                         </label>
-                        <label class="input-group">
-                            <span>Roll No</span>
-                            <input type="text" name="roll_no" placeholder="Enter roll number" pattern="[0-9]+" inputmode="numeric" maxlength="15" required>
+                        <div class="form-row">
+                            <label class="field">Roll number
+                                <input type="text" name="roll_no" pattern="[0-9]+" inputmode="numeric" maxlength="15" placeholder="Digits only" required>
+                            </label>
+                            <label class="field">Course
+                                <select name="course" id="course" required>
+                                    <option value="" disabled selected>Select course</option>
+                                    <option value="BCA 1st">BCA 1st</option>
+                                    <option value="BCA 2nd">BCA 2nd</option>
+                                    <option value="BCA 3rd">BCA 3rd</option>
+                                    <option value="PGDCA">PGDCA</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label class="field">Contact number
+                            <input name="contact" type="tel" maxlength="10" pattern="[0-9]{10}" inputmode="numeric" placeholder="10-digit mobile number" required>
                         </label>
-                        <label class="input-group">
-                            <span>Course</span>
-                            <select name="course" id="course" required>
-                            <option value=" " disabled selected>Select Course</option>
-                            <option value="BCA 1st" >BCA 1st</option>
-                            <option value="BCA 2nd" >BCA 2nd</option>
-                            <option value="BCA 3rd" >BCA 3rd</option>
-                            <option value="PGDCA" >PGDCA</option>
-                            </select>
-                        </label>
-                        <label class="input-group">
-                            <span>Contact</span>
-                            <input name="contact" type="tel" maxlength="10" pattern="[0-9]{10}" placeholder="Enter phone number" required>
-                        </label>
-                        <button id="registrationSubmit" type="submit" class="primary-button primary-button--wide">
-                            <span class="button-label">Generate QR Pass</span>
+                        <button id="registrationSubmit" type="submit" class="btn btn--primary btn--block">
+                            <span class="button-label">Issue QR pass</span>
                             <span class="button-loader" aria-hidden="true"></span>
                         </button>
                     </form>
-
-                    <div id="registrationMessage" class="inline-message" aria-live="polite"></div>
+                    <div id="registrationMessage" class="inline-message" style="margin-top:14px" aria-live="polite"></div>
                 </section>
-            </main>
 
-            <section class="glass-panel event-panel fade-up fade-up--delay-2">
-                <div class="panel-heading">
-                    <p class="section-tag">Event Information</p>
-                    <h2>Annual College Fest 2026 Entry Desk</h2>
-                    <p class="section-copy">A secure and streamlined QR-based entry experience for registered students attending the campus event.</p>
-                </div>
-                <div class="event-info-grid">
-                    <article class="event-info-card">
-                        <span class="info-label">Event Name</span>
-                        <strong>Annual College Fest 2026</strong>
-                        <p>Centralized registration and live gate verification for student attendees.</p>
-                    </article>
-                    <article class="event-info-card">
-                        <span class="info-label">Description</span>
-                        <strong>Quick, reliable campus entry</strong>
-                        <p>Students receive a QR pass after registration and present it once at the event gate for instant verification.</p>
-                    </article>
-                    <article class="event-info-card event-info-card--rules">
-                        <span class="info-label">Entry Rules</span>
-                        <ul class="rule-list">
-                            <li>Only QR allowed</li>
-                            <li>One-time entry</li>
-                        </ul>
-                    </article>
-                </div>
-                <footer class="event-footer">Your College Name</footer>
-            </section>
-
-            <section id="registrationResult" class="glass-panel success-panel hidden fade-up">
-                <div class="success-headline">
-                    <div>
-                        <p class="section-tag">Pass Generated</p>
-                        <h2>✅ Registration Successful</h2>
+                <article id="registrationResult" class="ticket" data-state="empty" aria-label="Entry pass">
+                    <div class="ticket-head">
+                        <img src="/static/logo.png" alt="">
+                        <div><strong>Annual College Fest 2026</strong><span>Your College Name</span></div>
                     </div>
-                    <p class="section-copy">Show this QR at entry. The code can be scanned only once.</p>
-                </div>
-
-                <div class="success-content">
-                    <div class="qr-stage">
-                        <div class="qr-frame">
-                            <img id="qrImage" alt="Generated QR code">
-                        </div>
+                    <div class="ticket-body">
+                        <div class="qr-box"><span>The QR appears here once the pass is issued.</span><img id="qrImage" alt="Generated QR code"></div>
+                        <dl class="ticket-fields">
+                            <div><dt>Name</dt><dd id="ticketName" class="is-empty">—</dd></div>
+                            <div><dt>Roll number</dt><dd id="ticketRoll" class="is-empty">—</dd></div>
+                            <div><dt>Course</dt><dd id="ticketCourse" class="is-empty">—</dd></div>
+                        </dl>
                     </div>
-                    <div class="success-details">
-                        <div class="token-card">
-                            <span>Token</span>
-                            <strong id="resultToken">-</strong>
-                        </div>
-                        <div class="instruction-pill">Show this QR at entry</div>
-                        <a id="downloadQrButton" class="secondary-button secondary-button--wide" download>Download QR</a>
+                    <div class="ticket-tear"></div>
+                    <div class="ticket-foot">
+                        <div class="ticket-token only-issued">Pass code<strong id="resultToken">-</strong></div>
+                        <a id="downloadQrButton" class="btn btn--primary btn--block only-issued" download>Download QR</a>
+                        <small>One entry per pass. Show only the QR at the gate.</small>
                     </div>
-                </div>
-            </section>
+                </article>
+            </div>
         </div>
     </div>
 

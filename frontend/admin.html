@@ -3,117 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Dashboard · Entry Desk</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body data-page="admin" class="protected-page admin-page">
+<body data-page="admin" class="protected-page">
     <div id="loginOverlay" class="auth-overlay" style="display: none;">
-        <div class="auth-card glass-panel fade-scale">
-            <p class="section-tag">Restricted Page</p>
-            <h2>Authorized Access Only</h2>
-            <p class="section-copy">Authentication required. Please enter the password to continue.</p>
+        <div class="auth-card">
+            <img src="/static/logo.png" alt="">
+            <h2>Unlock the entry desk</h2>
+            <p>Enter the staff password to continue.</p>
             <form id="authForm" class="auth-form">
-                <label class="input-group">
-                    <span>Password</span>
-                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                <label class="field">Password
+                    <input id="authPassword" type="password" autocomplete="current-password" required>
                 </label>
-                <button type="submit" class="primary-button primary-button--wide">Continue</button>
+                <button type="submit" class="btn btn--primary btn--block">Unlock</button>
                 <div id="authError" class="auth-error" aria-live="polite"></div>
             </form>
         </div>
     </div>
 
     <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
-        <div class="page-shell page-shell--wide container">
-            <header class="hero hero--split hero--compact fade-up">
-                <div class="hero-copy-block">
-                    <p class="eyebrow">Operations Dashboard</p>
-                    <h1>Admin Dashboard</h1>
-                    <p class="hero-copy">Track registrations, monitor gate usage, manage attendance, and export backup-ready data during the event.</p>
+        <header class="app-bar">
+            <div class="app-bar-inner">
+                <a class="brand" href="/"><img src="/static/logo.png" alt="">Entry Desk</a>
+                <nav class="app-nav" aria-label="Main"><a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
+            </div>
+        </header>
+        <div class="page">
+            <div class="page-head">
+                <div>
+                    <h1>Dashboard</h1>
+                    <p>Track check-ins live and manage the guest list.</p>
                 </div>
-                <div class="nav-chips nav-chips--actions">
-                    <a class="nav-chip" href="/">Registration</a>
-                    <a class="nav-chip" href="/scanner">Scanner</a>
-                    <a class="nav-chip nav-chip--active" href="/admin">Admin</a>
-                    <a class="nav-chip" href="/settings">Settings</a>
+                <div class="page-actions">
+                    <input id="importCsvInput" type="file" accept=".csv" style="display: none;">
+                    <button id="importCsvButton" type="button" class="btn">Import CSV</button>
+                    <button id="downloadCsvButton" type="button" class="btn">Download CSV</button>
+                    <button id="refreshStudents" type="button" class="btn">Refresh</button>
                 </div>
-            </header>
+            </div>
 
-            <main class="dashboard-grid dashboard">
-                <section class="stats-row fade-up">
-                    <article class="glass-panel stat-card card">
-                        <span>Total Students</span>
-                        <strong id="statTotal">0</strong>
-                        <p>Registered passes created</p>
-                    </article>
-                    <article class="glass-panel stat-card card">
-                        <span>Used Entries</span>
-                        <strong id="statUsed">0</strong>
-                        <p>Students already checked in</p>
-                    </article>
-                    <article class="glass-panel stat-card card">
-                        <span>Remaining Entries</span>
-                        <strong id="statRemaining">0</strong>
-                        <p>Passes still available to scan</p>
-                    </article>
-                </section>
+            <section class="summary" aria-label="Entry summary">
+                <div class="summary-grid">
+                    <div class="summary-item"><span>Registered</span><strong id="statTotal">0</strong></div>
+                    <div class="summary-item"><span>Checked in</span><strong id="statUsed">0</strong></div>
+                    <div class="summary-item"><span>Yet to enter</span><strong id="statRemaining">0</strong></div>
+                </div>
+                <div class="summary-bar">
+                    <div><span>Attendance</span><span id="statPercent">0%</span></div>
+                    <div class="bar-track"><div id="statProgress" class="bar-fill"></div></div>
+                </div>
+            </section>
 
-                <section class="glass-panel controls-panel fade-up fade-up--delay card">
-                    <div class="panel-heading panel-heading--row">
-                        <div>
-                            <p class="section-tag">Controls</p>
-                            <h2>Search, Filter, and Export</h2>
-                        </div>
-                        <div class="panel-actions button-group">
-                            <input id="importCsvInput" type="file" accept=".csv" style="display: none;">
-                            <button id="importCsvButton" type="button" class="secondary-button">Import CSV</button>
-                            <button id="downloadCsvButton" type="button" class="secondary-button">Download CSV</button>
-                            <button id="refreshStudents" type="button" class="secondary-button">Refresh Data</button>
-                        </div>
-                    </div>
+            <div class="toolbar">
+                <input id="searchRoll" type="search" placeholder="Search by roll number" inputmode="numeric" maxlength="15" aria-label="Search by roll number">
+                <div class="segmented" role="group" aria-label="Filter by status">
+                    <button type="button" class="filter-chip active" data-filter="all">All</button>
+                    <button type="button" class="filter-chip" data-filter="used">Checked in</button>
+                    <button type="button" class="filter-chip" data-filter="not-used">Not entered</button>
+                </div>
+            </div>
+            <div id="adminMessage" class="inline-message" aria-live="polite"></div>
 
-                    <div class="dashboard-toolbar dashboard-toolbar--compact">
-                        <input id="searchRoll" type="text" placeholder="Search by roll number" pattern="[0-9]+" inputmode="numeric" maxlength="15">
-                        <div class="filter-group" aria-label="Student status filter">
-                            <button type="button" class="filter-chip active" data-filter="all">All</button>
-                            <button type="button" class="filter-chip" data-filter="used">Used</button>
-                            <button type="button" class="filter-chip" data-filter="not-used">Not Used</button>
-                        </div>
-                    </div>
-
-                    <div id="adminMessage" class="inline-message" aria-live="polite"></div>
-                </section>
-
-                <section class="glass-panel table-panel fade-up fade-up--delay-2 card">
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Roll No</th>
-                                    <th>Course</th>
-                                    <th>Contact</th>
-                                    <th>Status</th>
-                                    <th>QR Code</th>
-                                    <th>Created At</th>
-                                    <th>Entry At</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="studentsTableBody">
-                                <tr>
-                                    <td colspan="9" class="empty-state">Loading students...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </main>
+            <section class="table-panel">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Student</th><th>Contact</th><th>Status</th><th>QR</th><th>Registered</th><th>Entered</th><th></th>
+                        </tr></thead>
+                        <tbody id="studentsTableBody">
+                            <tr><td colspan="7" class="empty-state">Loading students…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </div>
 
     <script src="/static/script.js"></script>
 </body>
 </html>
-

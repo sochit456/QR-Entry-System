@@ -3,71 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings</title>
+    <title>Settings · Entry Desk</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body data-page="settings" class="protected-page admin-page">
+<body data-page="settings" class="protected-page">
     <div id="loginOverlay" class="auth-overlay" style="display: none;">
-        <div class="auth-card glass-panel fade-scale">
-            <p class="section-tag">Restricted Page</p>
-            <h2>Authorized Access Only</h2>
-            <p class="section-copy">Authentication required. Please enter the password to continue.</p>
+        <div class="auth-card">
+            <img src="/static/logo.png" alt="">
+            <h2>Unlock the entry desk</h2>
+            <p>Enter the staff password to continue.</p>
             <form id="authForm" class="auth-form">
-                <label class="input-group">
-                    <span>Password</span>
-                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                <label class="field">Password
+                    <input id="authPassword" type="password" autocomplete="current-password" required>
                 </label>
-                <button type="submit" class="primary-button primary-button--wide">Continue</button>
+                <button type="submit" class="btn btn--primary btn--block">Unlock</button>
                 <div id="authError" class="auth-error" aria-live="polite"></div>
             </form>
         </div>
     </div>
 
     <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
-        <div class="page-shell page-shell--wide container">
-            <header class="hero hero--split hero--compact fade-up">
-                <div class="hero-copy-block">
-                    <p class="eyebrow">Session</p>
-                    <h1>Settings</h1>
-                    <p class="hero-copy">Manage this device's access to the QR Entry System.</p>
-                </div>
-                <div class="nav-chips nav-chips--actions">
-                    <a class="nav-chip" href="/">Registration</a>
-                    <a class="nav-chip" href="/scanner">Scanner</a>
-                    <a class="nav-chip" href="/admin">Admin</a>
-                    <a class="nav-chip nav-chip--active" href="/settings">Settings</a>
-                </div>
-            </header>
-
-            <main class="dashboard-grid dashboard">
-                <section class="glass-panel controls-panel fade-up card">
-                    <div class="panel-heading">
-                        <p class="section-tag">Security</p>
-                        <h2>Lock This Session</h2>
-                    </div>
-                    <p class="section-copy">Locking this page will require the password again to access Registration, Scanner, Admin, or Settings on this device.</p>
-                    <div class="panel-actions button-group">
-                        <button type="button" class="nav-chip nav-chip--button" data-lock-session>Lock Page</button>
-                    </div>
+        <header class="app-bar">
+            <div class="app-bar-inner">
+                <a class="brand" href="/"><img src="/static/logo.png" alt="">Entry Desk</a>
+                <nav class="app-nav" aria-label="Main"><a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
+            </div>
+        </header>
+        <div class="page">
+            <div class="page-head"><div>
+                <h1>Settings</h1>
+                <p>Preferences for this device.</p>
+            </div></div>
+            <div class="settings">
+                <section class="panel setting-row">
+                    <div><h2>Theme</h2><p>Match your device, or pick light or dark.</p></div>
+                    <select id="themeSelect" class="theme-select" aria-label="Theme">
+                        <option value="system">Match device</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
                 </section>
-
-                <section class="glass-panel controls-panel fade-up card">
-                    <div class="panel-heading">
-                        <p class="section-tag">Appearance</p>
-                        <h2>Theme</h2>
-                    </div>
-                    <p class="section-copy">Choose how the QR Entry System looks on this device.</p>
-                    <label class="input-group">
-                        <span>Theme</span>
-                        <select id="themeSelect" class="theme-select">
-                            <option value="dark">🌙 Dark</option>
-                            <option value="light">☀️ Light</option>
-                            <option value="system">💻 System (Default)</option>
-                        </select>
-                    </label>
+                <section class="panel setting-row">
+                    <div><h2>Lock this device</h2><p>The password is required again to open any page.</p></div>
+                    <button type="button" class="btn" data-lock-session>Lock now</button>
                 </section>
-            </main>
+            </div>
         </div>
     </div>
 

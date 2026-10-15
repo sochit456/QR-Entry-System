@@ -100,41 +100,11 @@ function setButtonLoading(button, isLoading, loadingLabel = "Loading...") {
     button.classList.toggle("is-loading", isLoading);
 }
 
-// Turns a FastAPI-style `detail` value into a plain, human-readable string.
-//
-// `detail` is normally a string (every HTTPException in this app sends a
-// string). But FastAPI's built-in request validation (422 responses) can
-// still send `detail` as a list of error objects, e.g.
-//   [{ "loc": ["body", "name"], "msg": "...", "type": "..." }]
-// Passing that array/object straight into `new Error(...)` causes it to be
-// stringified with the default Object.toString(), which produces the
-// literal text "[object Object]" instead of a real message. This helper
-// makes sure we always end up with a string no matter the shape of `detail`.
-function extractErrorMessage(data) {
-    const fallback = "Something went wrong. Please try again.";
-    const detail = data && data.detail;
-
-    if (!detail) return fallback;
-    if (typeof detail === "string") return detail;
-
-    if (Array.isArray(detail)) {
-        const messages = detail
-            .map((item) => (item && typeof item === "object" ? item.msg : item))
-            .filter(Boolean);
-        return messages.length ? messages.join(" ") : fallback;
-    }
-
-    if (typeof detail === "object") {
-        return detail.msg || fallback;
-    }
-
-    return fallback;
-}
-
 async function parseJsonResponse(response) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(extractErrorMessage(data));
+        const detail = data.detail || "Something went wrong. Please try again.";
+        throw new Error(detail);
     }
     return data;
 }
@@ -153,12 +123,10 @@ function formatDate(value) {
     }
 
     return localDate.toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
         hour12: true,
     });
 }
@@ -251,15 +219,15 @@ function showSessionContinueModal({ onContinue, onLogout }) {
     const overlay = document.createElement("div");
     overlay.id = "sessionContinueOverlay";
     overlay.className = "auth-overlay";
-    overlay.style.display = "flex";
+    overlay.style.display = "grid";
     overlay.innerHTML = `
-        <div class="auth-card glass-panel fade-scale">
-            <p class="section-tag">Session</p>
-            <h2>Continue your session?</h2>
-            <p class="section-copy">You refreshed the page. Your admin session is still active. Would you like to continue working?</p>
-            <div class="action-stack">
-                <button type="button" id="sessionContinueButton" class="primary-button primary-button--wide">Continue</button>
-                <button type="button" id="sessionLogoutButton" class="secondary-button secondary-button--wide">Logout</button>
+        <div class="auth-card">
+            <img src="/static/logo.png" alt="">
+            <h2>Welcome back</h2>
+            <p>Your session is still active.</p>
+            <div class="auth-form">
+                <button type="button" id="sessionContinueButton" class="btn btn--primary btn--block">Continue</button>
+                <button type="button" id="sessionLogoutButton" class="btn btn--block">Log out</button>
             </div>
         </div>
     `;
@@ -308,7 +276,7 @@ function protectPage(onAuthorized) {
         }
         if (overlay) {
             overlay.hidden = false;
-            overlay.style.display = "flex";
+            overlay.style.display = "grid";
         }
         window.setTimeout(() => passwordInput?.focus(), 120);
     }
@@ -380,13 +348,34 @@ function initRegistrationPage() {
     const qrImage = document.getElementById("qrImage");
     const downloadButton = document.getElementById("downloadQrButton");
 
+    const ticketFields = { name: "ticketName", roll_no: "ticketRoll", course: "ticketCourse" };
+    function showTicketDetails(values) {
+        Object.entries(ticketFields).forEach(([key, id]) => {
+            const node = document.getElementById(id);
+            const value = (values[key] || "").trim();
+            node.textContent = value || "—";
+            node.classList.toggle("is-empty", !value);
+        });
+    }
+
+    // Live preview: typing a new registration resets an issued ticket.
+    form.addEventListener("input", () => {
+        if (resultCard.dataset.state === "issued") {
+            resultCard.dataset.state = "empty";
+            qrImage.removeAttribute("src");
+            setMessage(message, "");
+        }
+        showTicketDetails(Object.fromEntries(new FormData(form).entries()));
+    });
+
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        setMessage(message, "Registering student and generating QR code...");
-        setButtonLoading(submitButton, true, "Generating Pass...");
+        setMessage(message, "Issuing pass…");
+        setButtonLoading(submitButton, true, "Issuing pass…");
 
         const formData = new FormData(form);
         const payload = Object.fromEntries(formData.entries());
+        showTicketDetails(payload);
 
         try {
             const data = await parseJsonResponse(
@@ -402,10 +391,12 @@ function initRegistrationPage() {
             qrImage.alt = `QR code for token ${data.token}`;
             downloadButton.href = data.qr_code_url;
             downloadButton.download = `${data.token}.png`;
-            resultCard.classList.remove("hidden");
-            setMessage(message, "QR pass generated successfully.", "success");
+            resultCard.dataset.state = "issued";
+            setMessage(message, "Pass issued. Download the QR or show it at the gate.", "success");
             form.reset();
-            resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+            if (window.matchMedia("(max-width: 960px)").matches) {
+                resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
         } catch (error) {
             setMessage(message, error.message, "error");
         } finally {
@@ -446,10 +437,8 @@ function setScanStatus(status, title, message) {
     const container = document.getElementById("scanStatus");
     const titleNode = document.getElementById("scanTitle");
     const messageNode = document.getElementById("scanMessage");
-    const pill = container.querySelector(".status-pill");
 
     container.className = `scan-status ${status}`;
-    pill.textContent = status === "neutral" ? "Ready" : status.toUpperCase();
     titleNode.textContent = title;
     messageNode.textContent = message;
 
@@ -468,7 +457,7 @@ function initScannerPage() {
     let scannerBusy = false;
     let currentFacingMode = "environment";
 
-    function setSwitchButtonState(label = "Switch Camera", disabled = false) {
+    function setSwitchButtonState(label = "Switch camera", disabled = false) {
         if (!switchCameraButton) return;
         switchCameraButton.textContent = label;
         switchCameraButton.disabled = disabled;
@@ -498,9 +487,9 @@ function initScannerPage() {
             playScannerFeedback(result.status);
 
             if (result.status === "VALID") {
-                setScanStatus("valid", "Entry Allowed", result.message);
+                setScanStatus("valid", "Entry allowed", result.message);
             } else if (result.status === "USED") {
-                setScanStatus("used", "Already Used", result.message);
+                setScanStatus("used", "Already used", result.message);
             } else {
                 setScanStatus("invalid", "Invalid QR", result.message);
             }
@@ -547,14 +536,14 @@ function initScannerPage() {
 
             scannerActive = true;
             scannerHint.textContent = `Scanner is active using the ${currentFacingMode === "environment" ? "rear" : "front"} camera.`;
-            setScanStatus("neutral", "Waiting for scan", "Show a student QR code to the camera for instant verification.");
+            setScanStatus("neutral", "Ready to scan", "Hold a student QR pass in front of the camera.");
         } catch (error) {
             scannerHint.textContent = "Camera start failed. Please allow access and refresh the page.";
-            setScanStatus("invalid", "Scanner Unavailable", String(error));
+            setScanStatus("invalid", "Scanner unavailable", String(error));
             throw error;
         } finally {
             scannerBusy = false;
-            setSwitchButtonState("Switch Camera", false);
+            setSwitchButtonState("Switch camera", false);
         }
     }
 
@@ -613,46 +602,36 @@ function renderStudents(students, activeFilter) {
     });
 
     if (!filteredStudents.length) {
-        tableBody.innerHTML = '<tr><td colspan="9" class="empty-state">No students match the current filter.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No students match this search or filter.</td></tr>';
         return;
     }
 
     tableBody.innerHTML = filteredStudents
         .map((student) => {
             const qrUrl = buildStudentQrUrl(student);
+            const action = student.is_used
+                ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>`
+                : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Check in</button>`;
             return `
                 <tr>
-                    <td>${escapeHtml(student.name)}</td>
-                    <td>${escapeHtml(student.roll_no)}</td>
-                    <td>${escapeHtml(student.course)}</td>
-                    <td class="contact-cell">${escapeHtml(student.contact)}</td>
+                    <td class="student"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.roll_no)} &middot; ${escapeHtml(student.course)}</small></td>
+                    <td>${escapeHtml(student.contact)}</td>
+                    <td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td>
                     <td>
-                        <span class="status-badge ${student.is_used ? "used" : "not-used"}">
-                            ${student.is_used ? "Used" : "Not Used"}
-                        </span>
+                        <a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener">
+                            <img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}">
+                        </a>
                     </td>
-                    <td class="qr-cell">
-                        <div class="qr-mini-card">
-                            <a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener">
-                                <img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}">
-                            </a>
-                        </div>
-                    </td>
-                    <td>${escapeHtml(formatDate(student.created_at))}</td>
-                    <td>${escapeHtml(formatDate(student.entry_at))}</td>
-                    <td class="action-cell">
-                        <div class="action-stack">
-                            <button type="button" class="action-button action-button--success" data-manual-entry="${student.id}" ${student.is_used ? "disabled" : ""}>
-                                Mark Present
+                    <td class="when">${escapeHtml(formatDate(student.created_at))}</td>
+                    <td class="when">${escapeHtml(formatDate(student.entry_at))}</td>
+                    <td>
+                        <div class="row-actions">
+                            ${action}
+                            <button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg>
                             </button>
-                            <button type="button" class="action-button action-button--warning" data-reset-entry="${student.id}" ${student.is_used ? "" : "disabled"}>
-                                Reset
-                            </button>
-                            <button type="button" class="action-button action-button--danger" data-delete-student="${student.id}">
-                                Delete
-                            </button>
-                            <button type="button" class="action-button action-button--primary" data-share-student='${JSON.stringify(student)}'>
-                                Share
+                            <button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
                             </button>
                         </div>
                     </td>
@@ -670,6 +649,10 @@ function updateAdminStats(students) {
     document.getElementById("statTotal").textContent = String(total);
     document.getElementById("statUsed").textContent = String(used);
     document.getElementById("statRemaining").textContent = String(remaining);
+
+    const percent = total ? Math.round((used / total) * 100) : 0;
+    document.getElementById("statPercent").textContent = `${percent}%`;
+    document.getElementById("statProgress").style.width = `${percent}%`;
 }
 
 function setActiveFilterButton(activeFilter) {
@@ -689,7 +672,7 @@ function initAdminPage() {
     let activeFilter = "all";
 
     async function loadStudents(successMessage = null) {
-        setMessage(message, "Loading registered students...");
+        setMessage(message, "Loading students…");
         refreshButton.disabled = true;
 
         try {
@@ -698,10 +681,10 @@ function initAdminPage() {
             );
             updateAdminStats(students);
             renderStudents(students, activeFilter);
-            setMessage(message, successMessage || `${students.length} Students Registered.`, "success");
+            setMessage(message, successMessage || `${students.length} students registered.`, "success");
         } catch (error) {
             tableBody.innerHTML =
-                '<tr><td colspan="9" class="empty-state">Unable to load student data.</td></tr>';
+                '<tr><td colspan="7" class="empty-state">Could not load students. Check your connection and refresh.</td></tr>';
             setMessage(message, error.message, "error");
         } finally {
             refreshButton.disabled = false;
@@ -726,7 +709,7 @@ function initAdminPage() {
                 if (phone.length === 10) phone = "91" + phone;
 
                 if (!phone) {
-                    alert("Invalid phone number");
+                    setMessage(message, "This student has no valid phone number to share to.", "error");
                     return;
                 }
 
@@ -735,7 +718,7 @@ function initAdminPage() {
                 window.open(`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage)}`, "_blank");
             } catch (error) {
                 console.error(error);
-                alert("Unable to share QR.");
+                setMessage(message, "Could not open WhatsApp for this student.", "error");
             }
             return;
         }
@@ -754,12 +737,12 @@ function initAdminPage() {
         const isResetAction = Boolean(button.dataset.resetEntry);
         const isDeleteAction = Boolean(button.dataset.deleteStudent);
 
-        if (isResetAction && !window.confirm("Are you sure?")) return;
+        if (isResetAction && !window.confirm("Undo this check-in? The pass will work again.")) return;
         if (isDeleteAction && !window.confirm("Are you sure you want to delete this student?")) return;
 
-        const defaultLabel = button.textContent.trim();
+        const defaultHtml = button.innerHTML;
         button.disabled = true;
-        button.textContent = isDeleteAction ? "Deleting..." : "Updating...";
+        if (!button.classList.contains("btn--icon")) button.textContent = "Updating…";
 
         try {
             if (button.dataset.manualEntry) {
@@ -793,7 +776,7 @@ function initAdminPage() {
             setMessage(message, data.message, "success");
         } catch (error) {
             button.disabled = false;
-            button.textContent = defaultLabel;
+            button.innerHTML = defaultHtml;
             setMessage(message, error.message, "error");
         }
     });
@@ -821,7 +804,7 @@ function initAdminPage() {
 
         importCsvInput.value = "";
         importCsvButton.disabled = true;
-        importCsvButton.textContent = "Importing...";
+        importCsvButton.textContent = "Importing…";
         setMessage(message, "Importing students from CSV...");
 
         const formData = new FormData();
