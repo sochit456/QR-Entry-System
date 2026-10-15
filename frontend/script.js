@@ -436,12 +436,134 @@ function renderCustomRegistrationFields(fields) {
 function customFieldEditorRow(field = {}) {
     const row = document.createElement("div");
     row.className = "custom-field-row";
-    row.innerHTML = `<label class="field">Label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label><label class="field">Key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required></label><label class="field">Type<select data-prop="type"><option value="text">Text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="select">Dropdown</option></select></label><label class="field custom-options">Options (comma separated)<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce"></label><label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span>Required</span></label><button type="button" class="btn btn--sm" data-remove-field>Remove</button>`;
+    row.innerHTML = `
+        <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
+        <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label>
+        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[a-z][a-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="department" required><small>Lowercase letters, numbers, and underscores; start with a letter.</small></label>
+        <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="email">Email address</option><option value="tel">Phone number</option><option value="number">Number</option><option value="select">Dropdown</option></select></label>
+        <label class="field custom-options">Dropdown options<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce, Arts"><small>Separate options with commas.</small></label>
+        <label class="check-row custom-required"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required field</strong><small>Participants must fill this in.</small></span></label>
+        <p class="field-error" data-field-error role="status"></p>`;
     row.querySelector('[data-prop="type"]').value = field.type || "text";
-    row.querySelector('[data-prop="type"]').addEventListener("change", (event) => row.querySelector(".custom-options").hidden = event.target.value !== "select");
-    row.querySelector(".custom-options").hidden = (field.type || "text") !== "select";
-    row.querySelector("[data-remove-field]").addEventListener("click", () => row.remove());
+    const options = row.querySelector(".custom-options");
+    const updateType = () => { options.hidden = row.querySelector('[data-prop="type"]').value !== "select"; };
+    row.querySelector('[data-prop="type"]').addEventListener("change", () => { updateType(); markSettingsDirty(); });
+    row.querySelectorAll("input, select").forEach((control) => control.addEventListener("input", () => { row.classList.remove("has-error"); markSettingsDirty(); updateSettingsPreview(); }));
+    row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); });
+    updateType();
     return row;
+}
+
+let settingsInitialSnapshot = "";
+let settingsIsDirty = false;
+function settingsSnapshot(form, editor) {
+    const payload = {};
+    ["event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme"].forEach((key) => payload[key] = form.elements.namedItem(key).value);
+    ["registration_open", "scanner_sound", "scanner_vibration"].forEach((key) => payload[key] = form.elements.namedItem(key).checked);
+    payload.course_options = form.elements.namedItem("course_options").value.split("\n").map((x) => x.trim()).filter(Boolean);
+    payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => ({
+        label: row.querySelector('[data-prop="label"]').value.trim(),
+        key: row.querySelector('[data-prop="key"]').value.trim(),
+        type: row.querySelector('[data-prop="type"]').value,
+        options: row.querySelector('[data-prop="options"]').value.split(",").map((x) => x.trim()).filter(Boolean),
+        required: row.querySelector('[data-prop="required"]').checked,
+    }));
+    return payload;
+}
+
+function markSettingsDirty() {
+    const form = document.getElementById("settingsForm");
+    const editor = document.getElementById("customFieldsEditor");
+    if (!form || !editor) return;
+    settingsIsDirty = JSON.stringify(settingsSnapshot(form, editor)) !== settingsInitialSnapshot;
+    const label = document.getElementById("settingsDirtyLabel");
+    const title = document.getElementById("saveBarTitle");
+    const hint = document.getElementById("saveBarHint");
+    const discard = document.getElementById("discardSettingsButton");
+    document.querySelector(".settings-status")?.classList.toggle("is-dirty", settingsIsDirty);
+    if (label) label.textContent = settingsIsDirty ? "Unsaved changes" : "All changes saved";
+    if (title) title.textContent = settingsIsDirty ? "You have unsaved changes" : "Settings are up to date";
+    if (hint) hint.textContent = settingsIsDirty ? "Save to apply these changes across the app." : "Your latest settings are saved.";
+    if (discard) discard.disabled = !settingsIsDirty;
+}
+
+function updateCustomFieldCount() {
+    const count = document.querySelectorAll("#customFieldsEditor .custom-field-row").length;
+    const target = document.getElementById("customFieldCount");
+    if (target) target.textContent = `${count} ${count === 1 ? "field" : "fields"}`;
+    document.querySelectorAll(".custom-field-number").forEach((node, index) => node.textContent = `Custom field ${index + 1}`);
+}
+
+function updateSettingsPreview() {
+    const form = document.getElementById("settingsForm");
+    const editor = document.getElementById("customFieldsEditor");
+    if (!form || !editor) return;
+    const value = (key) => form.elements.namedItem(key).value.trim();
+    const eventName = value("event_name") || "Your event name";
+    const organization = value("organization_name") || "Organization name";
+    const date = value("event_date");
+    const location = value("event_location");
+    const name = document.getElementById("previewEventName");
+    const org = document.getElementById("previewOrganization");
+    const mark = document.getElementById("previewBrandMark");
+    const color = value("brand_color") || "#0b6fb8";
+    applyTheme(value("theme") || "system");
+    const rgb = color.match(/^#([0-9a-f]{6})$/i);
+    if (rgb) {
+        const hex = rgb[1];
+        const channels = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4));
+        const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+        document.documentElement.style.setProperty("--on-brand", luminance > 0.42 ? "#102033" : "#ffffff");
+    }
+    const colorValue = document.getElementById("brandColorValue");
+    if (name) name.textContent = eventName;
+    if (org) org.textContent = organization;
+    if (mark) {
+        mark.textContent = eventName.slice(0, 1).toUpperCase();
+        const logo = value("logo_url");
+        mark.innerHTML = "";
+        if (logo) {
+            const img = document.createElement("img");
+            img.src = logo; img.alt = "";
+            img.onerror = () => { mark.textContent = eventName.slice(0, 1).toUpperCase(); };
+            mark.append(img);
+        } else mark.textContent = eventName.slice(0, 1).toUpperCase();
+    }
+    if (colorValue) colorValue.textContent = color.toUpperCase();
+    document.documentElement.style.setProperty("--brand", color);
+    document.documentElement.style.setProperty("--brand-hover", color);
+    document.documentElement.style.setProperty("--brand-tint", `${color}20`);
+    const meta = document.getElementById("summaryEventMeta");
+    if (meta) meta.textContent = [date, location].filter(Boolean).join(" · ") || "Set a date and location to show them here.";
+    const summaryName = document.getElementById("summaryEventName");
+    if (summaryName) summaryName.textContent = eventName;
+    const reg = document.getElementById("summaryRegistration");
+    if (reg) { reg.textContent = form.elements.namedItem("registration_open").checked ? "Open" : "Closed"; reg.classList.toggle("is-closed", !form.elements.namedItem("registration_open").checked); }
+    const fields = document.getElementById("summaryFields");
+    if (fields) fields.textContent = editor.querySelectorAll(".custom-field-row").length;
+    const sound = document.getElementById("summarySound");
+    if (sound) sound.textContent = form.elements.namedItem("scanner_sound").checked ? "On" : "Off";
+    const vibration = document.getElementById("summaryVibration");
+    if (vibration) vibration.textContent = form.elements.namedItem("scanner_vibration").checked ? "On" : "Off";
+    const preview = document.getElementById("brandPreview");
+    if (preview) preview.style.setProperty("--preview-brand", color);
+}
+
+function populateSettingsForm(form, editor, config) {
+    Object.entries(config).forEach(([key, value]) => {
+        const control = form.elements.namedItem(key);
+        if (!control) return;
+        if (control.type === "checkbox") control.checked = Boolean(value);
+        else if (key === "course_options") control.value = (value || []).join("\n");
+        else if (control.type !== "file") control.value = value ?? "";
+    });
+    editor.replaceChildren();
+    (config.custom_fields || []).forEach((field) => editor.append(customFieldEditorRow(field)));
+    updateCustomFieldCount();
+    updateSettingsPreview();
+    settingsInitialSnapshot = JSON.stringify(settingsSnapshot(form, editor));
+    settingsIsDirty = false;
+    markSettingsDirty();
 }
 
 async function initSettingsPage() {
@@ -449,41 +571,84 @@ async function initSettingsPage() {
     if (!form) return;
     const message = document.getElementById("settingsMessage");
     const editor = document.getElementById("customFieldsEditor");
+    const saveButton = document.getElementById("saveSettingsButton");
     try {
         const config = await parseJsonResponse(await authFetch("/api/settings", { cache: "no-store" }));
-        Object.entries(config).forEach(([key, value]) => {
-            const control = form.elements.namedItem(key);
-            if (!control) return;
-            if (control.type === "checkbox") control.checked = Boolean(value);
-            else if (key === "course_options") control.value = (value || []).join("\n");
-            else if (control.type !== "file") control.value = value ?? "";
-        });
-        (config.custom_fields || []).forEach((field) => editor.append(customFieldEditorRow(field)));
+        populateSettingsForm(form, editor, config);
     } catch (error) {
         setMessage(message, `Could not load settings: ${error.message}`, "error");
+        saveButton.disabled = true;
+        return;
     }
-    document.getElementById("addCustomField").addEventListener("click", () => editor.append(customFieldEditorRow()));
+    document.getElementById("addCustomField").addEventListener("click", () => {
+        if (editor.querySelectorAll(".custom-field-row").length >= 30) {
+            setMessage(message, "You can add up to 30 custom fields.", "warning");
+            return;
+        }
+        editor.append(customFieldEditorRow());
+        updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview();
+        editor.lastElementChild?.querySelector('[data-prop="label"]')?.focus();
+    });
+    form.addEventListener("input", () => { markSettingsDirty(); updateSettingsPreview(); });
+    form.addEventListener("change", () => { markSettingsDirty(); updateSettingsPreview(); });
+    window.addEventListener("beforeunload", (event) => {
+        if (!settingsIsDirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+    });
+    document.getElementById("discardSettingsButton").addEventListener("click", async () => {
+        if (!settingsIsDirty) return;
+        try {
+            const config = await parseJsonResponse(await authFetch("/api/settings", { cache: "no-store" }));
+            populateSettingsForm(form, editor, config);
+            setMessage(message, "Unsaved changes discarded.", "success");
+        } catch (error) { setMessage(message, `Could not reload settings: ${error.message}`, "error"); }
+    });
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const button = document.getElementById("saveSettingsButton");
-        setButtonLoading(button, true, "Saving...");
-        const payload = {};
-        ["event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme"].forEach((key) => payload[key] = form.elements.namedItem(key).value);
-        ["registration_open", "scanner_sound", "scanner_vibration"].forEach((key) => payload[key] = form.elements.namedItem(key).checked);
-        payload.course_options = form.elements.namedItem("course_options").value.split("\n").map((x) => x.trim()).filter(Boolean);
-        payload.custom_fields = [...editor.querySelectorAll(".custom-field-row")].map((row) => ({
-            label: row.querySelector('[data-prop="label"]').value.trim(),
-            key: row.querySelector('[data-prop="key"]').value.trim(),
-            type: row.querySelector('[data-prop="type"]').value,
-            options: row.querySelector('[data-prop="options"]').value.split(",").map((x) => x.trim()).filter(Boolean),
-            required: row.querySelector('[data-prop="required"]').checked,
-        }));
+        const payload = settingsSnapshot(form, editor);
+        const keys = new Set();
+        let invalidRow = null;
+        for (const row of editor.querySelectorAll(".custom-field-row")) {
+            const keyInput = row.querySelector('[data-prop="key"]');
+            const labelInput = row.querySelector('[data-prop="label"]');
+            const type = row.querySelector('[data-prop="type"]').value;
+            const optionsText = row.querySelector('[data-prop="options"]').value;
+            const errorNode = row.querySelector("[data-field-error]");
+            row.classList.remove("has-error"); errorNode.textContent = "";
+            if (!labelInput.value.trim() || !keyInput.checkValidity()) {
+                errorNode.textContent = "Add a label and a valid field key."; invalidRow = row;
+            } else if (keys.has(keyInput.value.trim())) {
+                errorNode.textContent = "Each field key must be unique."; invalidRow = row;
+            } else if (type === "select" && !optionsText.split(",").some((option) => option.trim())) {
+                errorNode.textContent = "Add at least one dropdown option."; invalidRow = row;
+            }
+            keys.add(keyInput.value.trim());
+            if (invalidRow) { row.classList.add("has-error"); break; }
+        }
+        if (invalidRow) {
+            setMessage(message, "Please fix the highlighted custom field before saving.", "error");
+            invalidRow.scrollIntoView({ behavior: "smooth", block: "center" });
+            invalidRow.querySelector("input:invalid")?.focus();
+            return;
+        }
+        const courseOptions = [...new Set(payload.course_options)];
+        if (!courseOptions.length) {
+            setMessage(message, "Add at least one course or category option.", "error");
+            form.elements.namedItem("course_options").focus();
+            return;
+        }
+        payload.course_options = courseOptions;
+        setButtonLoading(saveButton, true, "Saving...");
+        saveButton.disabled = true;
         try {
             const saved = await parseJsonResponse(await authFetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }));
-            appConfig = saved; applyAppConfig();
-            setMessage(message, "Settings saved. The event pages will use the new configuration.", "success");
+            appConfig = saved;
+            applyAppConfig();
+            populateSettingsForm(form, editor, saved);
+            setMessage(message, "Settings saved successfully. Your event pages will use the updated configuration.", "success");
         } catch (error) { setMessage(message, error.message, "error"); }
-        finally { setButtonLoading(button, false); }
+        finally { setButtonLoading(saveButton, false); saveButton.disabled = false; }
     });
 }
 

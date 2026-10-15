@@ -31,40 +31,65 @@
                 <nav class="app-nav" aria-label="Main"><a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
             </div>
         </header>
-        <div class="page">
-            <div class="page-head"><div><h1>Event settings</h1><p>Change these settings once; the registration page and scanner will use them.</p></div></div>
-            <form id="settingsForm" class="settings-form">
-                <section class="panel settings-section">
-                    <h2>Event details</h2>
-                    <div class="form-grid">
-                        <label class="field">Event name<input name="event_name" maxlength="200" required></label>
-                        <label class="field">Organization name<input name="organization_name" maxlength="200"></label>
-                        <div class="form-row"><label class="field">Event date<input name="event_date" type="date"></label><label class="field">Location<input name="event_location" maxlength="200"></label></div>
-                        <label class="field">Registration page description<textarea name="event_description" rows="3" maxlength="500"></textarea></label>
-                        <label class="field">Logo image URL<input name="logo_url" placeholder="/static/logo.png"><small>Use an image path served by this app, such as /static/logo.png.</small></label>
+        <div class="page settings-page">
+            <div class="page-head settings-page-head">
+                <div>
+                    <span class="eyebrow">CONTROL CENTER</span>
+                    <h1>Event settings</h1>
+                    <p>Shape the registration experience, branding, and scanner behavior for your event. Changes are saved centrally and used across the app.</p>
+                </div>
+                <div class="settings-status" aria-live="polite"><span class="status-dot"></span><span id="settingsDirtyLabel">All changes saved</span></div>
+            </div>
+            <div class="settings-layout">
+                <form id="settingsForm" class="settings-form">
+                    <section class="panel settings-section" id="eventDetailsSection">
+                        <div class="section-heading"><span class="section-icon" aria-hidden="true">✦</span><div><h2>Event details</h2><p>Core information shown to participants and staff.</p></div></div>
+                        <div class="form-grid">
+                            <label class="field">Event name <span class="required-mark">*</span><input name="event_name" maxlength="200" required placeholder="e.g. Annual College Fest 2026"></label>
+                            <label class="field">Organization name<input name="organization_name" maxlength="200" placeholder="e.g. ABC College"></label>
+                            <div class="form-row"><label class="field">Event date<input name="event_date" type="date"></label><label class="field">Location<input name="event_location" maxlength="200" placeholder="e.g. Main Auditorium"></label></div>
+                            <label class="field">Registration page description<textarea name="event_description" rows="3" maxlength="500" placeholder="Tell participants what they need to know..."></textarea><small>Shown above the registration form. Keep it short and clear.</small></label>
+                            <label class="field">Logo image path<input name="logo_url" maxlength="500" placeholder="/static/logo.png"><small>Use an image path served by this app. The preview updates when you change it.</small></label>
+                        </div>
+                    </section>
+
+                    <section class="panel settings-section" id="appearanceSection">
+                        <div class="section-heading"><span class="section-icon" aria-hidden="true">◐</span><div><h2>Appearance</h2><p>Match the app to your event's visual identity.</p></div></div>
+                        <div class="form-row appearance-row">
+                            <label class="field">Color theme<select name="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option></select><small>Controls the overall interface theme.</small></label>
+                            <label class="field">Primary color<div class="color-control"><input name="brand_color" type="color" value="#0b6fb8"><output id="brandColorValue">#0B6FB8</output></div><small>Used for primary actions and active navigation.</small></label>
+                        </div>
+                        <div class="brand-preview" id="brandPreview"><div class="preview-brand-mark" id="previewBrandMark">E</div><div class="preview-brand-copy"><strong id="previewEventName">Your event name</strong><span id="previewOrganization">Organization name</span></div><span class="preview-button" id="previewButton">Primary button</span></div>
+                    </section>
+
+                    <section class="panel settings-section" id="registrationSection">
+                        <div class="section-heading"><span class="section-icon" aria-hidden="true">☷</span><div><h2>Registration</h2><p>Control whether people can register and which options they can choose.</p></div></div>
+                        <label class="check-row setting-toggle"><input name="registration_open" type="checkbox"><span><strong>Accept new registrations</strong><small>Turn this off to close the registration form. Existing records remain unchanged.</small></span><span class="toggle-visual" aria-hidden="true"></span></label>
+                        <label class="field">Course / category options <small>Enter one option per line. These appear in the registration dropdown.</small><textarea name="course_options" rows="4" placeholder="BCA 1st&#10;BCA 2nd&#10;BCA 3rd&#10;PGDCA"></textarea></label>
+                        <div class="subsection-heading"><div><h3>Custom registration fields</h3><p>Add optional details such as department, email, or designation.</p></div><span class="count-pill" id="customFieldCount">0 fields</span></div>
+                        <div id="customFieldsEditor" class="custom-fields-editor"></div>
+                        <button type="button" id="addCustomField" class="btn add-field-button">＋ Add custom field</button>
+                        <p class="helper-note">Name, roll number, course, and contact remain part of the existing registration and reports. Custom fields are stored with each registration.</p>
+                    </section>
+
+                    <section class="panel settings-section" id="scannerSection">
+                        <div class="section-heading"><span class="section-icon" aria-hidden="true">▦</span><div><h2>QR scanner feedback</h2><p>Choose how staff receive feedback after a scan.</p></div></div>
+                        <label class="check-row setting-toggle"><input name="scanner_sound" type="checkbox"><span><strong>Sound feedback</strong><small>Play a short tone for scan results.</small></span><span class="toggle-visual" aria-hidden="true"></span></label>
+                        <label class="check-row setting-toggle"><input name="scanner_vibration" type="checkbox"><span><strong>Vibration feedback</strong><small>Vibrate on supported phones and devices.</small></span><span class="toggle-visual" aria-hidden="true"></span></label>
+                        <div class="helper-note">Vibration depends on browser and device support. Some browsers require a user interaction before playing sound.</div>
+                    </section>
+                    <div class="settings-actions settings-savebar">
+                        <div class="save-copy"><strong id="saveBarTitle">Ready when you are</strong><span id="saveBarHint">Your changes are not live until you save.</span></div>
+                        <div class="save-buttons"><button type="button" id="discardSettingsButton" class="btn">Discard changes</button><button type="submit" id="saveSettingsButton" class="btn btn--primary"><span class="button-label">Save settings</span><span class="button-loader" aria-hidden="true"></span></button></div>
+                        <span id="settingsMessage" class="inline-message" aria-live="polite" role="status"></span>
                     </div>
-                </section>
-                <section class="panel settings-section">
-                    <h2>Appearance</h2>
-                    <div class="form-row"><label class="field">Theme<select name="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label class="field">Primary color<input name="brand_color" type="color" value="#0b6fb8"></label></div>
-                </section>
-                <section class="panel settings-section">
-                    <h2>Registration</h2>
-                    <label class="check-row"><input name="registration_open" type="checkbox"> <span><strong>Registration is open</strong><small>Turn this off to stop new registrations.</small></span></label>
-                    <label class="field">Course / category options <small>Enter one option per line.</small><textarea name="course_options" rows="4" placeholder="BCA 1st&#10;BCA 2nd&#10;BCA 3rd&#10;PGDCA"></textarea></label>
-                    <h3>Custom registration fields</h3>
-                    <p class="muted">Add extra fields for this event. Core fields (name, roll number, course, contact) remain available for existing reports.</p>
-                    <div id="customFieldsEditor" class="custom-fields-editor"></div>
-                    <button type="button" id="addCustomField" class="btn">+ Add custom field</button>
-                </section>
-                <section class="panel settings-section">
-                    <h2>QR scanner feedback</h2>
-                    <label class="check-row"><input name="scanner_sound" type="checkbox"><span><strong>Sound feedback</strong><small>Play a tone for scan results.</small></span></label>
-                    <label class="check-row"><input name="scanner_vibration" type="checkbox"><span><strong>Vibration feedback</strong><small>Vibrate on supported devices.</small></span></label>
-                </section>
-                <div class="settings-actions"><button type="submit" id="saveSettingsButton" class="btn btn--primary"><span class="button-label">Save settings</span><span class="button-loader" aria-hidden="true"></span></button><span id="settingsMessage" class="inline-message" aria-live="polite"></span></div>
-            </form>
-            <section class="panel setting-row lock-row"><div><h2>Lock this device</h2><p>The password is required again to open any page.</p></div><button type="button" class="btn" data-lock-session>Lock now</button></section>
+                </form>
+                <aside class="settings-aside" aria-label="Settings help">
+                    <section class="panel aside-card"><span class="aside-kicker">LIVE SUMMARY</span><h2 id="summaryEventName">Your event</h2><p id="summaryEventMeta">Set a date and location to show them here.</p><div class="summary-divider"></div><div class="summary-line"><span>Registration</span><strong id="summaryRegistration" class="mini-status">Loading…</strong></div><div class="summary-line"><span>Custom fields</span><strong id="summaryFields">0</strong></div><div class="summary-line"><span>Scanner sound</span><strong id="summarySound">On</strong></div><div class="summary-line"><span>Vibration</span><strong id="summaryVibration">On</strong></div></section>
+                    <section class="panel aside-card help-card"><span class="aside-kicker">QUICK TIPS</span><h2>Before you publish</h2><ul><li>Check the event name and date carefully.</li><li>Use short, clear registration field labels.</li><li>Dropdown fields need at least one option.</li><li>Test one registration and one QR scan after saving.</li></ul></section>
+                    <section class="panel aside-card"><span class="aside-kicker">SECURITY</span><h2>Protect your event</h2><p>Only authorized staff can change settings. Registration and QR rules must also be enforced by the server, not just by what the page displays.</p><button type="button" class="btn btn--block" data-lock-session>Lock this device</button></section>
+                </aside>
+            </div>
         </div>
     </div>
 
