@@ -151,3 +151,26 @@ UptimeRobot will now automatically ping your Render app to help keep it awake.
 
 # Working URL of Project:-
 https://qr-entry-system-a08u.onrender.com
+
+## Dynamic event settings (Option A)
+
+The Settings page now stores event configuration in the database and applies it to the registration page and QR scanner.
+
+Settings include:
+- Event name, organization, date, location, description, and logo image path/URL.
+- Theme and primary brand color.
+- Registration open/closed switch.
+- Configurable course/category options.
+- Additional custom registration fields (text, email, phone, number, or dropdown), including required fields.
+- QR scanner sound and vibration feedback toggles.
+
+### How to use
+1. Start the application as usual and sign in with the staff/admin password.
+2. Open **Settings**.
+3. Change the event information and registration/scanner options.
+4. Use **Add custom field** to collect extra participant information. Field keys should start with a lowercase letter and use only lowercase letters, numbers, and underscores (for example, `department`). Dropdown options are comma-separated.
+5. Click **Save settings**. New registrations will use the updated form and settings.
+
+Settings are persisted in the `app_settings` database table. Extra registration values are stored as JSON in each student's `extra_data` field and included in CSV exports. Existing student fields and records are retained. The backend enforces the registration-open switch, valid course/category choices, and required custom fields; the UI alone is not relied on for these checks.
+
+The settings API is `GET /api/settings` and `PUT /api/settings` (admin-authenticated). `GET /public-config` exposes only the event settings needed by public-facing pages.
