@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, JSON, Text
 
 from backend.database import Base
 
@@ -17,3 +17,11 @@ class Student(Base):
     is_used = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     entry_at = Column(DateTime, nullable=True)
+    extra_data = Column(JSON, nullable=False, default=dict)
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    config = Column(JSON, nullable=False)

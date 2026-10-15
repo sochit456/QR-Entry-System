@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, Any, Dict
 
 from pydantic import BaseModel, Field
 
@@ -16,8 +16,9 @@ class LoginResponse(BaseModel):
 class RegisterStudentRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     roll_no: str = Field(..., min_length=1, max_length=50)
-    course: Literal["BCA 1st", "BCA 2nd", "BCA 3rd", "PGDCA"]
-    contact: str = Field(..., min_length=1, max_length=10)
+    course: str = Field(..., min_length=1, max_length=120)
+    contact: str = Field(..., min_length=1, max_length=50)
+    extra_data: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RegisterStudentResponse(BaseModel):
@@ -56,6 +57,7 @@ class StudentResponse(BaseModel):
     is_used: bool
     created_at: datetime
     entry_at: Optional[datetime] = None
+    extra_data: Dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         orm_mode = True
