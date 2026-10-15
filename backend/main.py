@@ -121,13 +121,16 @@ def clean_settings(payload: dict) -> dict:
     for item in fields:
         if not isinstance(item, dict):
             raise HTTPException(status_code=400, detail="Each custom field must be a valid object.")
-        key = str(item.get("key", "")).strip().lower()
+        # Field keys are user-defined identifiers, not Python/SQL identifiers.
+        # Preserve punctuation, spaces, Unicode, and letter casing; JSON supports all of them.
+        key = str(item.get("key", "")).strip()[:120]
         label = str(item.get("label", "")).strip()[:80]
-        if not __import__("re").fullmatch(r"[a-z][a-z0-9_]{0,39}", key) or key in reserved_keys or not label:
-            raise HTTPException(status_code=400, detail="Each custom field needs a label and a valid, non-reserved key.")
-        if key in seen_keys:
-            raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated.")
-        seen_keys.add(key)
+        normalized_key = key.casefold()
+        if not key or normalized_key in reserved_keys or not label:
+            raise HTTPException(status_code=400, detail="Each custom field needs a label and a non-reserved key.")
+        if normalized_key in seen_keys:
+            raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated (ignoring letter case).")
+        seen_keys.add(normalized_key)
         field_type = item.get("type") if item.get("type") in ("text", "email", "tel", "number", "select") else "text"
         raw_options = item.get("options", [])
         if not isinstance(raw_options, list):
