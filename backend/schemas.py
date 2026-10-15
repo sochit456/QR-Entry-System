@@ -15,9 +15,9 @@ class LoginResponse(BaseModel):
 
 class RegisterStudentRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    roll_no: str = Field(..., min_length=1, max_length=50)
-    course: str = Field(..., min_length=1, max_length=120)
-    contact: str = Field(..., min_length=1, max_length=50)
+    roll_no: str = Field("", max_length=50)
+    course: str = Field("", max_length=120)
+    contact: str = Field("", max_length=50)
     extra_data: Dict[str, Any] = Field(default_factory=dict)
 
 

@@ -52,7 +52,17 @@ def ensure_database_schema() -> None:
     if "students" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("students")}
+    # Older releases created roll_no as a unique index. Uniqueness is now enforced
+    # according to the saved field configuration, so migrate it to a normal index.
+    indexes = inspector.get_indexes("students")
     with engine.begin() as connection:
+        for index in indexes:
+            if index.get("name") == "ix_students_roll_no" and index.get("unique"):
+                connection.exec_driver_sql("DROP INDEX IF EXISTS ix_students_roll_no")
+        refreshed = __import__("sqlalchemy").inspect(connection).get_indexes("students")
+        if not any(index.get("name") == "ix_students_roll_no" for index in refreshed):
+            try: connection.exec_driver_sql("CREATE INDEX ix_students_roll_no ON students (roll_no)")
+            except Exception: pass
         if "entry_at" not in columns:
             column_type = "DATETIME" if engine.dialect.name == "sqlite" else "TIMESTAMP"
             connection.exec_driver_sql(f"ALTER TABLE students ADD COLUMN entry_at {column_type}")
@@ -82,6 +92,11 @@ DEFAULT_SETTINGS = {
     "scanner_vibration": True,
     "course_options": ["BCA 1st", "BCA 2nd", "BCA 3rd", "PGDCA"],
     "custom_fields": [],
+    "field_settings": {
+        "roll_no": {"label":"Roll number", "type":"text", "required":True, "unique":True, "search":True, "placeholder":"Enter roll number", "help_text":"", "min_length":1, "max_length":50, "pattern":"", "width":"half"},
+        "course": {"label":"Course / category", "type":"select", "required":True, "unique":False, "search":False, "placeholder":"Select course / category", "help_text":"", "min_length":0, "max_length":120, "pattern":"", "width":"half"},
+        "contact": {"label":"Contact number", "type":"tel", "required":True, "unique":False, "search":False, "placeholder":"Enter contact number", "help_text":"", "min_length":0, "max_length":50, "pattern":"", "width":"full"}
+    },
 }
 
 def get_settings(db: Session) -> dict:
@@ -93,6 +108,11 @@ def get_settings(db: Session) -> dict:
         db.refresh(row)
     result = DEFAULT_SETTINGS.copy()
     result.update(row.config or {})
+    merged_fields = {key: dict(value) for key, value in DEFAULT_SETTINGS["field_settings"].items()}
+    for key, value in (result.get("field_settings") or {}).items():
+        if key in merged_fields and isinstance(value, dict): merged_fields[key].update(value)
+    result["field_settings"] = merged_fields
+    result.setdefault("search_field", "roll_no")
     return result
 
 def clean_settings(payload: dict) -> dict:
@@ -118,27 +138,82 @@ def clean_settings(payload: dict) -> dict:
     safe_fields = []
     seen_keys = set()
     reserved_keys = {"name", "roll_no", "course", "contact", "extra_data"}
+    allowed_types = ("text", "email", "tel", "number", "select", "textarea", "date", "url", "checkbox")
     for item in fields:
         if not isinstance(item, dict):
             raise HTTPException(status_code=400, detail="Each custom field must be a valid object.")
-        # Field keys are user-defined identifiers, not Python/SQL identifiers.
-        # Preserve punctuation, spaces, Unicode, and letter casing; JSON supports all of them.
-        key = str(item.get("key", "")).strip()[:120]
+        key = str(item.get("key", "")).strip().lower()
         label = str(item.get("label", "")).strip()[:80]
-        normalized_key = key.casefold()
-        if not key or normalized_key in reserved_keys or not label:
-            raise HTTPException(status_code=400, detail="Each custom field needs a label and a non-reserved key.")
-        if normalized_key in seen_keys:
-            raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated (ignoring letter case).")
-        seen_keys.add(normalized_key)
-        field_type = item.get("type") if item.get("type") in ("text", "email", "tel", "number", "select") else "text"
+        if not __import__("re").fullmatch(r"[a-z][a-z0-9_]{0,39}", key) or key in reserved_keys or not label:
+            raise HTTPException(status_code=400, detail="Each custom field needs a label and a valid, non-reserved key.")
+        if key in seen_keys:
+            raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated.")
+        seen_keys.add(key)
+        field_type = item.get("type") if item.get("type") in allowed_types else "text"
         raw_options = item.get("options", [])
-        if not isinstance(raw_options, list):
-            raw_options = []
+        if not isinstance(raw_options, list): raw_options = []
         options = list(dict.fromkeys(str(option).strip()[:100] for option in raw_options if str(option).strip()))[:30]
         if field_type == "select" and not options:
             raise HTTPException(status_code=400, detail=f"Add at least one dropdown option for '{label}'.")
-        safe_fields.append({"key": key, "label": label, "type": field_type, "required": bool(item.get("required", False)), "options": options})
+        min_length = max(0, min(int(item.get("min_length", 0) or 0), 500))
+        max_length = max(1, min(int(item.get("max_length", 250) or 250), 5000))
+        if min_length > max_length: raise HTTPException(status_code=400, detail=f"Minimum length cannot exceed maximum length for '{label}'.")
+        minimum = item.get("min")
+        maximum = item.get("max")
+        try:
+            minimum = float(minimum) if minimum not in (None, "") else None
+            maximum = float(maximum) if maximum not in (None, "") else None
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail=f"Minimum and maximum must be numbers for '{label}'.")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise HTTPException(status_code=400, detail=f"Minimum cannot exceed maximum for '{label}'.")
+        pattern = str(item.get("pattern", ""))[:200]
+        if pattern:
+            try: __import__("re").compile(pattern)
+            except Exception: raise HTTPException(status_code=400, detail=f"Invalid validation pattern for '{label}'.")
+        safe_fields.append({"key":key,"label":label,"type":field_type,"required":bool(item.get("required",False)),"unique":bool(item.get("unique",False)),"search":bool(item.get("search",False)),"placeholder":str(item.get("placeholder", ""))[:160],"help_text":str(item.get("help_text", ""))[:250],"options":options,"min_length":min_length,"max_length":max_length,"min":minimum,"max":maximum,"pattern":pattern,"width":item.get("width") if item.get("width") in ("full","half","third") else "full"})
+    result["custom_fields"] = safe_fields
+    # Per-field controls for the existing editable fields. Name is deliberately immutable.
+    defaults = DEFAULT_SETTINGS["field_settings"]
+    incoming = result.get("field_settings", {})
+    normalized = {}
+    for key in ("roll_no", "course", "contact"):
+        source = incoming.get(key, {}) if isinstance(incoming, dict) else {}
+        base = dict(defaults[key]); base.update(source if isinstance(source, dict) else {})
+        allowed = allowed_types if key != "course" else ("select", "text", "email", "tel", "number", "textarea", "date", "url")
+        base["type"] = base.get("type") if base.get("type") in allowed else defaults[key]["type"]
+        base["label"] = str(base.get("label", defaults[key]["label"])).strip()[:80] or defaults[key]["label"]
+        base["placeholder"] = str(base.get("placeholder", ""))[:160]
+        base["help_text"] = str(base.get("help_text", ""))[:250]
+        base["required"] = bool(base.get("required", True))
+        base["unique"] = bool(base.get("unique", key == "roll_no"))
+        base["search"] = bool(base.get("search", False))
+        base["min_length"] = max(0, min(int(base.get("min_length", 0) or 0), 500))
+        base["max_length"] = max(1, min(int(base.get("max_length", 250) or 250), 5000))
+        base["pattern"] = str(base.get("pattern", ""))[:200]
+        try:
+            base["min"] = float(base.get("min")) if base.get("min") not in (None, "") else None
+            base["max"] = float(base.get("max")) if base.get("max") not in (None, "") else None
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail=f"Minimum and maximum must be numbers for '{base['label']}'.")
+        if base["min"] is not None and base["max"] is not None and base["min"] > base["max"]: raise HTTPException(status_code=400, detail=f"Minimum cannot exceed maximum for '{base['label']}'.")
+        if base["pattern"]:
+            try: __import__("re").compile(base["pattern"])
+            except Exception: raise HTTPException(status_code=400, detail=f"Invalid validation pattern for '{base['label']}'.")
+        base["width"] = base.get("width") if base.get("width") in ("full","half","third") else "full"
+        normalized[key] = base
+    # At least one non-name unique field is required; first marked unique becomes dashboard search field.
+    all_fields = [{"key": k, **v} for k,v in normalized.items()] + safe_fields
+    unique_fields = [f for f in all_fields if f.get("unique")]
+    if not unique_fields:
+        raise HTTPException(status_code=400, detail="Mark at least one field (other than Name) as unique so student records can be searched reliably.")
+    result["field_settings"] = normalized
+    selected_search = [f for f in all_fields if f.get("search") and f.get("unique")]
+    if len(selected_search) > 1:
+        raise HTTPException(status_code=400, detail="Choose only one unique field for student search.")
+    result["search_field"] = (selected_search[0] if selected_search else unique_fields[0])["key"]
+    for key in normalized: normalized[key]["search"] = key == result["search_field"]
+    for field in safe_fields: field["search"] = field["key"] == result["search_field"]
+    result["field_settings"] = normalized
     result["custom_fields"] = safe_fields
     return result
 
@@ -194,7 +269,7 @@ def health_check():
 @app.get("/public-config")
 def public_config(db: Session = Depends(get_db)) -> dict:
     settings = get_settings(db)
-    return {key: settings[key] for key in ("event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme", "registration_open", "scanner_sound", "scanner_vibration", "course_options", "custom_fields")}
+    return {key: settings[key] for key in ("event_name", "organization_name", "event_date", "event_location", "event_description", "logo_url", "brand_color", "theme", "registration_open", "scanner_sound", "scanner_vibration", "course_options", "custom_fields", "field_settings", "search_field")}
 
 @app.get("/api/settings")
 def read_settings(db: Session = Depends(get_db), _admin: str = Depends(require_admin)) -> dict:
@@ -339,24 +414,49 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
     if not settings.get("registration_open", True):
         raise HTTPException(status_code=403, detail="Registration is currently closed.")
     name = sanitize_input(payload.name, "Name")
-    roll_no = sanitize_input(payload.roll_no, "Roll number")
-    course = sanitize_input(payload.course, "Course")
-    contact = sanitize_input(payload.contact, "Contact")
-    if course not in settings.get("course_options", DEFAULT_SETTINGS["course_options"]):
+    field_settings = settings.get("field_settings", DEFAULT_SETTINGS["field_settings"])
+    roll_no = str(payload.roll_no or "").strip()
+    course = str(payload.course or "").strip()
+    contact = str(payload.contact or "").strip()
+    for key, value in (("roll_no", roll_no), ("course", course), ("contact", contact)):
+        if field_settings.get(key, {}).get("required", True) and not value:
+            raise HTTPException(status_code=400, detail=f'{field_settings.get(key, {}).get("label", key)} is required.')
+    if field_settings.get("course", {}).get("type") == "select" and course and course not in settings.get("course_options", DEFAULT_SETTINGS["course_options"]):
         raise HTTPException(status_code=400, detail="Please select a valid course option.")
     extra_data = payload.extra_data or {}
-    for field in settings.get("custom_fields", []):
-        value = extra_data.get(field["key"], "")
-        if field.get("required") and not str(value).strip():
-            raise HTTPException(status_code=400, detail=f'{field["label"]} is required.')
-        if field.get("type") == "select" and value and value not in field.get("options", []):
-            raise HTTPException(status_code=400, detail=f'Invalid value for {field["label"]}.')
-
-    if db.execute(select(Student).where(Student.roll_no == roll_no)).scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A student with this roll number is already registered.",
-        )
+    values = {"roll_no": roll_no, "course": course, "contact": contact, **extra_data}
+    definitions = [{"key": k, **v} for k,v in field_settings.items()] + settings.get("custom_fields", [])
+    import re
+    for field in definitions:
+        key, label = field["key"], field.get("label", field["key"])
+        value = values.get(key, "")
+        text_value = str(value).strip() if value is not None else ""
+        if field.get("required") and (not text_value or (field.get("type") == "checkbox" and value is not True)):
+            raise HTTPException(status_code=400, detail=f'{label} is required.')
+        if field.get("type") == "checkbox":
+            if field.get("unique") and value is True:
+                for existing in db.execute(select(Student)).scalars().all():
+                    if (existing.extra_data or {}).get(key) is True: raise HTTPException(status_code=400, detail=f'{label} must be unique; this value is already registered.')
+            continue
+        if not text_value: continue
+        if len(text_value) < int(field.get("min_length", 0) or 0) or len(text_value) > int(field.get("max_length", 5000) or 5000):
+            raise HTTPException(status_code=400, detail=f'{label} must be between {field.get("min_length",0)} and {field.get("max_length",5000)} characters.')
+        if field.get("pattern") and not re.fullmatch(field["pattern"], text_value):
+            raise HTTPException(status_code=400, detail=f'{label} has an invalid format.')
+        if field.get("type") == "email" and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", text_value):
+            raise HTTPException(status_code=400, detail=f'Enter a valid {label.lower()}.')
+        if field.get("type") == "select" and text_value not in field.get("options", settings.get("course_options", [])):
+            raise HTTPException(status_code=400, detail=f'Invalid value for {label}.')
+        if field.get("type") == "number":
+            try: number_value = float(text_value)
+            except ValueError: raise HTTPException(status_code=400, detail=f'{label} must be a number.')
+            if field.get("min") is not None and number_value < field["min"]: raise HTTPException(status_code=400, detail=f'{label} must be at least {field["min"]}.')
+            if field.get("max") is not None and number_value > field["max"]: raise HTTPException(status_code=400, detail=f'{label} must be at most {field["max"]}.')
+        if field.get("unique"):
+            for existing in db.execute(select(Student)).scalars().all():
+                existing_values = {"roll_no": existing.roll_no, "course": existing.course, "contact": existing.contact, **(existing.extra_data or {})}
+                if str(existing_values.get(key, "")).strip().casefold() == text_value.casefold():
+                    raise HTTPException(status_code=400, detail=f'{label} must be unique; this value is already registered.')
 
     token = generate_token()
     while db.execute(select(Student).where(Student.token == token)).scalar_one_or_none():

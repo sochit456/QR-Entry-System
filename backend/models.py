@@ -10,7 +10,7 @@ class Student(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), nullable=False)
-    roll_no = Column(String(50), unique=True, index=True, nullable=False)
+    roll_no = Column(String(50), index=True, nullable=False)
     course = Column(String(120), nullable=False)
     contact = Column(String(50), nullable=False)
     token = Column(String(20), unique=True, index=True, nullable=False)
