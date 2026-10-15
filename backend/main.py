@@ -116,14 +116,26 @@ def clean_settings(payload: dict) -> dict:
     if not isinstance(fields, list) or len(fields) > 30:
         raise HTTPException(status_code=400, detail="Add up to 30 custom fields.")
     safe_fields = []
+    seen_keys = set()
+    reserved_keys = {"name", "roll_no", "course", "contact", "extra_data"}
     for item in fields:
         if not isinstance(item, dict):
-            continue
+            raise HTTPException(status_code=400, detail="Each custom field must be a valid object.")
         key = str(item.get("key", "")).strip().lower()
         label = str(item.get("label", "")).strip()[:80]
-        if not __import__("re").fullmatch(r"[a-z][a-z0-9_]{0,39}", key) or key in {"name", "roll_no", "course", "contact", "extra_data"} or not label:
-            continue
-        safe_fields.append({"key": key, "label": label, "type": item.get("type") if item.get("type") in ("text", "email", "tel", "number", "select") else "text", "required": bool(item.get("required", False)), "options": [str(x)[:100] for x in item.get("options", []) if str(x).strip()][:30]})
+        if not __import__("re").fullmatch(r"[a-z][a-z0-9_]{0,39}", key) or key in reserved_keys or not label:
+            raise HTTPException(status_code=400, detail="Each custom field needs a label and a valid, non-reserved key.")
+        if key in seen_keys:
+            raise HTTPException(status_code=400, detail=f"Custom field key '{key}' is duplicated.")
+        seen_keys.add(key)
+        field_type = item.get("type") if item.get("type") in ("text", "email", "tel", "number", "select") else "text"
+        raw_options = item.get("options", [])
+        if not isinstance(raw_options, list):
+            raw_options = []
+        options = list(dict.fromkeys(str(option).strip()[:100] for option in raw_options if str(option).strip()))[:30]
+        if field_type == "select" and not options:
+            raise HTTPException(status_code=400, detail=f"Add at least one dropdown option for '{label}'.")
+        safe_fields.append({"key": key, "label": label, "type": field_type, "required": bool(item.get("required", False)), "options": options})
     result["custom_fields"] = safe_fields
     return result
 
