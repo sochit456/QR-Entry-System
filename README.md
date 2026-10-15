@@ -194,3 +194,12 @@ The Settings page now supports editing the built-in fields other than **Name** a
 Mark a field **Unique / no duplicates** to reject values already used by another registration. Choose **Use for student search** on one unique field to make it the dashboard's automatic search key. If no search field is explicitly chosen, the first unique field is used. The Name field is intentionally fixed.
 
 The backend validates field values during registration as well as the browser, so bypassing the form does not bypass the configured validation rules. Back up your database before updating the project, then test registration, duplicate handling, and dashboard search with sample records before using it at a live event.
+
+## Dynamic registration fields (updated Option A)
+
+- **Name is the only built-in registration field.** Add all other fields from Settings → Registration fields.
+- Each configured field can define its label/key, input type, options, required status, unique-value rule, search-field role, placeholder/help text, length/value limits, pattern, and layout width.
+- Mark one field as unique and searchable. The dashboard uses that field for search and creates table columns from the configured fields automatically.
+- Registration values for user-defined fields are stored in `students.extra_data`. Legacy `roll_no`, `course`, and `contact` database columns remain for backward compatibility with existing databases; they are no longer shown as built-in form fields.
+- Back up the database before updating. Test the new field configuration and duplicate rules against a copy of existing registration data before using it at a live event.
+- The Settings categories use a single-open accordion: opening one category closes the others.
