@@ -326,6 +326,23 @@ tbody tr:hover:has(.empty-state){background:transparent}
 .accordion-chevron{width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translate(-2px,-2px);transition:transform .18s}
 .settings-accordion-trigger[aria-expanded="true"] .accordion-chevron{transform:rotate(-135deg) translate(-2px,-2px)}
 
+/* ---------- Home ---------- */
+.home-intro{display:grid;gap:16px;align-content:center;padding:36px}
+.home-intro h1{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:700;letter-spacing:-.03em}
+.home-intro p{color:var(--ink-2);max-width:58ch}
+.home-ticket{width:100%}
+.home-ticket .qr-box{border:1px solid var(--line);background:#fff;color:#0c1a2c;padding:10px}
+.home-section{margin-top:48px}
+.home-section .page-head{margin-bottom:20px}
+.home-section .page-head h2{font-size:clamp(1.35rem,2.6vw,1.8rem);font-weight:700;letter-spacing:-.025em}
+.feature-grid,.home-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0;padding:0;list-style:none}
+.feature-card{display:grid;gap:10px;align-content:start;padding:22px}
+.feature-card h3,.home-steps h3{font-size:1.05rem}
+.feature-card p,.home-steps p{color:var(--ink-2);font-size:.92rem;line-height:1.55}
+.home-steps{counter-reset:step}
+.home-steps li{display:grid;gap:6px;align-content:start}
+.home-steps li::before{counter-increment:step;content:"0" counter(step);font-family:var(--display);font-weight:700;font-size:1.3rem;color:var(--brand)}
+
 /* ---------- Not-found page ---------- */
 .nf-wrap{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
 .nf-ticket{position:static;width:min(100%,420px)}
@@ -348,6 +365,7 @@ tbody tr:hover:has(.empty-state){background:transparent}
   .ticket{position:static;width:min(100%,460px);justify-self:center}
 }
 @media (max-width:860px){
+  .feature-grid,.home-steps{grid-template-columns:repeat(2,minmax(0,1fr))}
   .settings-layout{grid-template-columns:1fr}
   .settings-aside{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}
   .settings-aside .aside-card:last-child{grid-column:1/-1}
@@ -364,6 +382,10 @@ tbody tr:hover:has(.empty-state){background:transparent}
   .page{padding:22px 0 36px}
   .page-head{margin-bottom:20px}
   .panel{padding:20px}
+  .home-intro{padding:22px}
+  .home-section{margin-top:36px}
+  .feature-grid,.home-steps{grid-template-columns:minmax(0,1fr)}
+  .home-intro .page-actions{grid-template-columns:1fr}
   .form-row{grid-template-columns:1fr}
   .form-grid{grid-template-columns:minmax(0,1fr)}
   #registrationForm>*,#registrationForm>.configured-half,#registrationForm>.configured-third{grid-column:1/-1}
