@@ -1018,12 +1018,32 @@ function initScannerPage() {
 let adminSearchField = "";
 let adminFieldLabels = {};
 let adminFields = [];
-function studentFieldValue(student, key) { if (key === "name") return student.name; const extra = (student.extra_data || {})[key]; return extra !== undefined && extra !== null && extra !== "" ? extra : (key === "roll_no" || key === "course" || key === "contact" ? student[key] : extra); }
+function studentFieldValue(student, key) {
+    if (key === "name" || key === "roll_no" || key === "course" || key === "contact") {
+        const extra = (student.extra_data || {})[key];
+        return extra !== undefined && extra !== null && extra !== "" ? extra : student[key];
+    }
+    const extra = (student.extra_data || {})[key];
+    return extra !== undefined && extra !== null ? extra : "";
+}
 function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
     const tableHead = document.getElementById("studentsTableHead");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-    const columns = [{key:"name", label:"Name"}, ...adminFields.map(field => ({key:field.key, label:field.label || field.key}))];
+    // Show configured fields plus every field imported from a CSV, even when it
+    // has never been configured in Settings. This keeps the table schema dynamic.
+    const importedKeys = [...new Set(students.flatMap(student => Object.keys(student.extra_data || {})))];
+    const configuredKeys = new Set(adminFields.map(field => field.key));
+    // The built-in Name column already shows common name aliases. All other
+    // imported headers remain visible, including headers such as Department,
+    // Email, Roll Number, or arbitrary user-defined labels.
+    const nameAliases = new Set(["name", "full name", "guest name", "participant name", "entry name"]);
+    const extraColumns = importedKeys.filter(key => !nameAliases.has(String(key).trim().toLowerCase()) && String(key).trim().toLowerCase() !== "extra_data");
+    const columns = [
+        {key:"name", label:"Name"},
+        ...adminFields.map(field => ({key:field.key, label:field.label || field.key})),
+        ...extraColumns.filter(key => !configuredKeys.has(key)).map(key => ({key, label:key}))
+    ];
     if (tableHead) tableHead.innerHTML = [...columns.map(col => `<th>${escapeHtml(col.label)}</th>`), "<th>Status</th>", "<th>QR</th>", "<th>Registered</th>", "<th>Entered</th>", "<th>Actions</th>"].join("");
     const filteredStudents = students.filter(student => {
         const searchText = String(studentFieldValue(student, adminSearchField) ?? "").toLowerCase();
@@ -1244,7 +1264,7 @@ function initAdminPage() {
         }
 
         const choice = window.prompt(
-            `Import backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all existing student records with this backup.\nType CANCEL (or leave blank) to stop.`
+            `Import backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all existing entry records with this CSV.\nType CANCEL (or leave blank) to stop.`
         );
         const mode = String(choice || "").trim().toLowerCase();
         if (mode !== "add" && mode !== "replace") {
@@ -1252,7 +1272,7 @@ function initAdminPage() {
             return;
         }
         if (mode === "replace" && !window.confirm(
-            "This will permanently replace all current student records with the records in this CSV backup. App settings will not be changed. Continue?"
+            "This will permanently replace all current entry records with the records in this CSV. App settings will not be changed. Continue?"
         )) {
             setMessage(message, "CSV replacement cancelled. No data was changed.");
             return;
@@ -1260,7 +1280,7 @@ function initAdminPage() {
 
         importCsvButton.disabled = true;
         importCsvButton.textContent = "Importing…";
-        setMessage(message, mode === "replace" ? "Validating backup and replacing student records…" : "Validating backup and adding new records…");
+        setMessage(message, mode === "replace" ? "Validating CSV and replacing all entry records…" : "Validating CSV and adding new records…");
 
         const formData = new FormData();
         formData.append("file", file);
@@ -1296,7 +1316,7 @@ function initAdminPage() {
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = blobUrl;
-            link.download = "students_export.csv";
+            link.download = "entry_data_backup.csv";
             document.body.appendChild(link);
             link.click();
             link.remove();
