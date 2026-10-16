@@ -745,6 +745,91 @@ def export_students(
     return StreamingResponse(iter([content]), media_type="text/csv; charset=utf-8", headers=headers)
 
 
+
+@app.put("/student/{student_id}", response_model=StudentResponse)
+def edit_student(
+    student_id: int,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> StudentResponse:
+    """Edit an existing dynamic entry without changing its QR or attendance history."""
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Entry not found.")
+
+    if "name" not in payload or not isinstance(payload.get("extra_data", {}), dict):
+        raise HTTPException(status_code=400, detail="Entry data must include a name and an extra_data object.")
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty.")
+    if len(name) > 120:
+        raise HTTPException(status_code=400, detail="Name must be 120 characters or fewer.")
+
+    old_extra = dict(student.extra_data or {})
+    new_extra = dict(payload.get("extra_data") or {})
+    # Merge submitted editable values into existing dynamic data so an edit can
+    # never accidentally discard fields unknown to the current UI.
+    old_extra.update(new_extra)
+    new_extra = old_extra
+
+    settings = get_settings(db)
+    definitions = settings.get("custom_fields", [])
+    existing_students = db.execute(select(Student).where(Student.id != student_id)).scalars().all()
+    import re
+    for field in definitions:
+        key = field.get("key")
+        if not key:
+            continue
+        label = field.get("label", key)
+        value = new_extra.get(key, False if field.get("type") == "checkbox" else "")
+        text_value = str(value).strip() if value is not None else ""
+        if field.get("required") and (not text_value or (field.get("type") == "checkbox" and value is not True)):
+            raise HTTPException(status_code=400, detail=f"{label} is required.")
+        if field.get("type") == "checkbox":
+            if field.get("unique") and value is True and any((other.extra_data or {}).get(key) is True for other in existing_students):
+                raise HTTPException(status_code=400, detail=f"{label} must be unique; this value is already in use.")
+            new_extra[key] = bool(value)
+            continue
+        if not text_value:
+            continue
+        if len(text_value) < int(field.get("min_length", 0) or 0) or len(text_value) > int(field.get("max_length", 5000) or 5000):
+            raise HTTPException(status_code=400, detail=f"{label} must be between {field.get('min_length', 0)} and {field.get('max_length', 5000)} characters.")
+        if field.get("pattern") and not re.fullmatch(field["pattern"], text_value):
+            raise HTTPException(status_code=400, detail=f"{label} has an invalid format.")
+        if field.get("type") == "email" and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", text_value):
+            raise HTTPException(status_code=400, detail=f"Enter a valid {label.lower()}.")
+        if field.get("type") == "select" and text_value not in field.get("options", []):
+            raise HTTPException(status_code=400, detail=f"Invalid value for {label}.")
+        if field.get("type") == "number":
+            try:
+                number_value = float(text_value)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"{label} must be a number.")
+            if field.get("min") is not None and number_value < field["min"]:
+                raise HTTPException(status_code=400, detail=f"{label} must be at least {field['min']}.")
+            if field.get("max") is not None and number_value > field["max"]:
+                raise HTTPException(status_code=400, detail=f"{label} must be at most {field['max']}.")
+        if field.get("unique") and any(
+            str((other.extra_data or {}).get(key, getattr(other, key, ""))).strip().casefold() == text_value.casefold()
+            for other in existing_students
+        ):
+            raise HTTPException(status_code=400, detail=f"{label} must be unique; this value is already in use.")
+
+    student.name = name
+    student.extra_data = new_extra
+    try:
+        db.commit()
+        db.refresh(student)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="This entry conflicts with an existing unique value.") from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update the entry.") from exc
+    return student
+
+
 @app.delete("/student/{student_id}")
 def delete_student(
     student_id: int,
