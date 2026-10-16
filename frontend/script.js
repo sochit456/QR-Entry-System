@@ -1248,20 +1248,41 @@ function initAdminPage() {
         const file = importCsvInput.files[0];
         if (!file) return;
 
+        // Let the administrator explicitly choose whether to replace or append.
+        // Canceling the prompt safely aborts without uploading or changing data.
+        const selectedMode = window.prompt(
+            "How should this CSV be imported?\n\nType REPLACE to delete all existing student records and import this file.\nType ADD to keep existing records and add only new, non-duplicate rows.\n\nType REPLACE or ADD:",
+            "ADD"
+        );
+        const mode = (selectedMode || "").trim().toLowerCase();
         importCsvInput.value = "";
+        if (!mode) {
+            setMessage(message, "CSV import cancelled. No data was changed.");
+            return;
+        }
+        if (!["replace", "add"].includes(mode)) {
+            setMessage(message, "Import cancelled. Please type exactly REPLACE or ADD.", "error");
+            return;
+        }
+        if (mode === "replace" && !window.confirm("Replace ALL existing student records with the contents of this CSV? This cannot be undone.")) {
+            setMessage(message, "CSV replacement cancelled. No data was changed.");
+            return;
+        }
+
         importCsvButton.disabled = true;
         importCsvButton.textContent = "Importing…";
-        setMessage(message, "Importing students from CSV...");
+        setMessage(message, mode === "replace" ? "Replacing existing data with CSV..." : "Adding new CSV records...");
 
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("mode", mode);
 
         try {
             const data = await parseJsonResponse(
                 await authFetch("/import", { method: "POST", body: formData })
             );
 
-            const summary = `Imported ${data.imported} student(s), skipped ${data.skipped}.`;
+            const summary = `${mode === "replace" ? "Replacement complete" : "Import complete"}: imported ${data.imported} record(s), skipped ${data.skipped} duplicate/invalid record(s).`;
             const detail = data.errors.length
                 ? ` Issues: ${data.errors.join(" | ")}`
                 : "";
