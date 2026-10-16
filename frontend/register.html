@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b6fb8">
+    <title>Register a student · Entry Desk</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="registration">
+    <div id="mainContent" class="protected-content" aria-hidden="false" style="display: block;">
+        <header class="app-bar">
+            <div class="app-bar-inner">
+                <a class="brand" href="/"><img src="/static/logo.png" alt=""><span class="brand-name">Entry Desk</span></a>
+                <nav class="app-nav" aria-label="Main"><a href="/register" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
+            </div>
+        </header>
+        <div class="page">
+            <div class="page-head"><div>
+                <h1>Register a student</h1>
+                <p>Fill in the details to issue a single-use QR pass for the gate.</p>
+            </div></div>
+            <div class="reg-layout">
+                <section class="panel">
+                    <form id="registrationForm" class="form-grid">
+                        <label class="field">Full name
+                            <input type="text" name="name" autocomplete="off" required>
+                        </label>
+                        <button id="registrationSubmit" type="submit" class="btn btn--primary btn--block">
+                            <span class="button-label">Issue QR pass</span>
+                            <span class="button-loader" aria-hidden="true"></span>
+                        </button>
+                    </form>
+                    <div id="registrationMessage" class="inline-message" style="margin-top:14px" aria-live="polite"></div>
+                </section>
+
+                <article id="registrationResult" class="ticket" data-state="empty" aria-label="Entry pass">
+                    <div class="ticket-head">
+                        <img src="/static/logo.png" alt="">
+                        <div><strong>Annual College Fest 2026</strong><span>Your College Name</span></div>
+                    </div>
+                    <div class="ticket-body">
+                        <div class="qr-box"><span>The QR appears here once the pass is issued.</span><img id="qrImage" alt="Generated QR code"></div>
+                        <dl class="ticket-fields">
+                            <div><dt>Name</dt><dd id="ticketName" class="is-empty">—</dd></div>
+                            <div id="ticketDynamicFields"></div>
+                        </dl>
+                    </div>
+                    <div class="ticket-tear"></div>
+                    <div class="ticket-foot">
+                        <div class="ticket-token only-issued">Pass code<strong id="resultToken">-</strong></div>
+                        <a id="downloadQrButton" class="btn btn--primary btn--block only-issued" download>Download QR</a>
+                        <small>One entry per pass. Show only the QR at the gate.</small>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
