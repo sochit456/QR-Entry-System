@@ -6,11 +6,11 @@ from typing import List, Dict, Any
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -273,10 +273,14 @@ def get_qr(token: str) -> StreamingResponse:
 @app.post("/import")
 async def import_students(
     file: UploadFile = File(...),
+    mode: str = Form("add"),
     db: Session = Depends(get_db),
     _admin: str = Depends(require_admin),
 ) -> dict:
-    """Import arbitrary CSV rows while preserving their original columns in extra_data."""
+    """Import arbitrary CSV rows, either adding unique records or replacing all records."""
+    mode = (mode or "add").strip().lower()
+    if mode not in {"add", "replace"}:
+        raise HTTPException(status_code=400, detail="Import mode must be 'add' or 'replace'.")
     filename = (file.filename or "").strip()
     if not filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please choose a .csv file.")
@@ -343,6 +347,20 @@ async def import_students(
                 header_by_field[field] = header
 
     imported, skipped, errors = 0, 0, []
+    # Replacement is deliberately performed only after the CSV has been decoded
+    # and its header/data rows validated. It is committed with the new records.
+    if mode == "replace":
+        db.execute(delete(Student))
+        db.flush()
+
+    existing_rolls = {str(v).strip() for v in db.execute(select(Student.roll_no)).scalars() if str(v or "").strip()}
+    existing_payloads = set()
+    for existing in db.execute(select(Student)).scalars():
+        try:
+            existing_payloads.add(__import__("json").dumps(existing.extra_data or {}, sort_keys=True, ensure_ascii=False, default=str))
+        except (TypeError, ValueError):
+            pass
+    seen_payloads = set()
     for row_number, row in enumerate(reader, start=2):
         # Keep every original CSV column/value, including unknown fields and blanks.
         original_data = {header: (row.get(header) if row.get(header) is not None else "") for header in headers}
@@ -360,12 +378,6 @@ async def import_students(
         course = value_for("course")
         contact = value_for("contact")
 
-        # Only enforce roll-number uniqueness when a roll number was actually supplied.
-        if roll_no and db.execute(select(Student).where(Student.roll_no == roll_no)).scalar_one_or_none():
-            errors.append(f"Row {row_number}: roll number '{roll_no}' already exists; skipped.")
-            skipped += 1
-            continue
-
         imported_extra_data = {}
         extra_header = header_by_field.get("extra_data")
         if extra_header:
@@ -382,6 +394,18 @@ async def import_students(
                 continue
             imported_extra_data[header] = value
 
+        # De-duplicate both against existing data (add mode) and within this file.
+        # A supplied roll/registration ID is the strongest identity; otherwise an
+        # exact match of all preserved CSV fields is treated as a duplicate.
+        payload_key = __import__("json").dumps(imported_extra_data, sort_keys=True, ensure_ascii=False, default=str)
+        if (roll_no and roll_no in existing_rolls) or payload_key in existing_payloads or payload_key in seen_payloads:
+            errors.append(f"Row {row_number}: duplicate data; skipped.")
+            skipped += 1
+            continue
+        seen_payloads.add(payload_key)
+        if roll_no:
+            existing_rolls.add(roll_no)
+
         is_used = value_for("is_used").lower() in ("true", "1", "yes", "y", "entered", "present")
         status_value = value_for("is_used").lower()
         if status_value in ("false", "0", "no", "n", "not entered", "absent"):
@@ -397,17 +421,18 @@ async def import_students(
                 token = generate_token()
 
         try:
-            db.add(Student(name=name[:120], roll_no=roll_no[:50], course=course[:120], contact=contact[:50],
-                           token=token, is_used=is_used, created_at=created_at, entry_at=entry_at,
-                           extra_data=imported_extra_data))
-            db.flush()
+            with db.begin_nested():
+                db.add(Student(name=name[:120], roll_no=roll_no[:50], course=course[:120], contact=contact[:50],
+                               token=token, is_used=is_used, created_at=created_at, entry_at=entry_at,
+                               extra_data=imported_extra_data))
+                db.flush()
             imported += 1
+            existing_payloads.add(payload_key)
         except IntegrityError:
-            db.rollback()
-            errors.append(f"Row {row_number}: could not save this row due to a database constraint; skipped.")
+            errors.append(f"Row {row_number}: could not save this row because it conflicts with existing data; skipped.")
             skipped += 1
     db.commit()
-    return {"imported": imported, "skipped": skipped, "errors": errors}
+    return {"mode": mode, "imported": imported, "skipped": skipped, "errors": errors}
 
 
 @app.post("/register", response_model=RegisterStudentResponse, status_code=status.HTTP_201_CREATED)
