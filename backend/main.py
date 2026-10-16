@@ -283,12 +283,24 @@ async def import_students(
         )
 
     raw = await file.read()
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
+    if not raw.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File encoding is not supported. Please save the CSV as UTF-8.",
+            detail="The CSV file is empty.",
+        )
+
+    # Excel exports may use a Windows encoding, while most other CSV files are UTF-8.
+    text = None
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not read this CSV file. Save it as CSV UTF-8 and try again.",
         )
 
     if not text.strip():
@@ -297,42 +309,61 @@ async def import_students(
             detail="The CSV file is empty.",
         )
 
-    reader = csv.DictReader(io.StringIO(text))
+    # Support comma-, semicolon-, and tab-separated files commonly produced by spreadsheets.
+    try:
+        dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     if not reader.fieldnames:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The CSV file must include a header row.",
         )
 
-    # Normalize common spreadsheet header variations before validating columns.
+    def normalize_header(value: str) -> str:
+        import re
+        return re.sub(r"[^a-z0-9]+", " ", (value or "").replace("\ufeff", "").strip().lower()).strip()
+
     aliases = {
-        "student name": "name", "full name": "name",
+        "student name": "name", "full name": "name", "name of student": "name",
         "roll number": "roll_no", "roll no": "roll_no", "rollno": "roll_no",
-        "registration number": "roll_no", "registration no": "roll_no",
-        "class": "course", "department": "course",
-        "phone": "contact", "phone number": "contact",
-        "mobile": "contact", "mobile number": "contact",
+        "roll number no": "roll_no", "registration number": "roll_no",
+        "registration no": "roll_no", "registration id": "roll_no", "enrollment number": "roll_no",
+        "enrolment number": "roll_no", "student id": "roll_no",
+        "class": "course", "department": "course", "program": "course", "programme": "course",
+        "contact number": "contact", "contact no": "contact", "phone": "contact",
+        "phone number": "contact", "phone no": "contact", "mobile": "contact",
+        "mobile number": "contact", "mobile no": "contact", "email": "email",
+        "email address": "email", "extra data": "extra_data", "is used": "is_used",
+        "created at": "created_at", "entry at": "entry_at",
     }
-    reader.fieldnames = [
-        aliases.get((header or "").strip().lower().replace("-", "_").replace("_", " "), 
-                    (header or "").strip().lower().replace("-", "_"))
-        for header in reader.fieldnames
-    ]
+    normalized_headers = []
+    for header in reader.fieldnames:
+        normalized = normalize_header(header)
+        normalized_headers.append(aliases.get(normalized, normalized.replace(" ", "_")))
+    reader.fieldnames = normalized_headers
+
     required_columns = {"name", "roll_no", "course", "contact"}
-    actual_columns = set(reader.fieldnames or [])
+    actual_columns = set(reader.fieldnames)
     if not required_columns.issubset(actual_columns):
         missing = required_columns - actual_columns
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"CSV is missing required columns: {', '.join(sorted(missing))}. "
-                   "Required columns are name, roll_no, course, contact.",
+            detail=(
+                f"CSV is missing required columns: {', '.join(sorted(missing))}. "
+                "Include Name, Roll Number, Course, and Contact columns."
+            ),
         )
 
     def parse_dt(value: str):
         value = (value or "").strip()
         if not value:
             return None
-        for fmt in ("%d/%m/%Y, %I:%M:%S %p", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        for fmt in (
+            "%d/%m/%Y, %I:%M:%S %p", "%d/%m/%Y %I:%M:%S %p",
+            "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d",
+        ):
             try:
                 return datetime.strptime(value, fmt)
             except ValueError:
@@ -342,8 +373,11 @@ async def import_students(
     imported, skipped, errors = 0, 0, []
 
     for i, row in enumerate(reader, start=2):
-        if not any((value or "").strip() for value in row.values() if isinstance(value, str)):
+        # DictReader stores surplus values under a None key; ignore those when checking blank rows.
+        values = [value for key, value in row.items() if key is not None and isinstance(value, str)]
+        if not any(value.strip() for value in values):
             continue
+
         name = (row.get("name") or "").strip()
         roll_no = (row.get("roll_no") or "").strip()
         course = (row.get("course") or "").strip()
@@ -366,6 +400,13 @@ async def import_students(
                 imported_extra_data = {}
         except (ValueError, TypeError):
             imported_extra_data = {}
+
+        # Preserve additional columns as custom student data instead of silently dropping them.
+        reserved = {"name", "roll_no", "course", "contact", "token", "is_used", "created_at", "entry_at", "extra_data"}
+        for key, value in row.items():
+            if key is not None and key not in reserved and value is not None and value.strip():
+                imported_extra_data.setdefault(key, value.strip())
+
         created_at = parse_dt(row.get("created_at")) or datetime.now()
         entry_at = parse_dt(row.get("entry_at")) if is_used else None
 
@@ -380,7 +421,7 @@ async def import_students(
             continue
 
         try:
-            # Keep a bad row from rolling back previously imported valid rows.
+            # A bad row should not roll back previously imported valid records.
             with db.begin_nested():
                 db.add(Student(
                     name=name,
@@ -396,10 +437,17 @@ async def import_students(
                 db.flush()
             imported += 1
         except IntegrityError:
-            errors.append(f"Row {i}: duplicate entry for roll number '{roll_no}', skipped.")
+            errors.append(f"Row {i}: duplicate or invalid record for roll number '{roll_no}', skipped.")
             skipped += 1
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="CSV import could not be saved to the database. Please check the CSV data and try again.",
+        ) from exc
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
 
