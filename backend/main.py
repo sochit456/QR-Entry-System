@@ -209,12 +209,12 @@ async def custom_404_handler(request: Request, exc):
 
 @app.get("/", include_in_schema=False)
 def serve_home():
-    return FileResponse(BASE_DIR / "frontend" / "home.html")
+    return FileResponse(BASE_DIR / "frontend" / "index.html")
 
 
 @app.get("/register", include_in_schema=False)
 def serve_registration():
-    return FileResponse(BASE_DIR / "frontend" / "index.html")
+    return FileResponse(BASE_DIR / "frontend" / "register.html")
 
 
 @app.get("/scanner", include_in_schema=False)
