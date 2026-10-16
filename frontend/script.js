@@ -1061,7 +1061,7 @@ function renderStudents(students, activeFilter) {
         const qrUrl = buildStudentQrUrl(student);
         const action = student.is_used ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>` : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Enter</button>`;
         const dynamicCells = columns.map(col => `<td data-col="${col.key === "name" ? "name" : "field"}" data-label="${escapeHtml(col.label)}">${escapeHtml(studentFieldValue(student, col.key) ?? "") || "—"}</td>`).join("");
-        return `<tr>${dynamicCells}<td data-col="status"><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Entered" : "Not entered"}</span></td><td data-col="qr"><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when" data-col="when" data-label="Registered">${escapeHtml(formatDate(student.created_at))}</td><td class="when" data-col="when" data-label="Entered">${escapeHtml(formatDate(student.entry_at))}</td><td data-col="actions"><div class="row-actions">${action}<button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
+        return `<tr>${dynamicCells}<td data-col="status"><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Entered" : "Not entered"}</span></td><td data-col="qr"><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when" data-col="when" data-label="Registered">${escapeHtml(formatDate(student.created_at))}</td><td class="when" data-col="when" data-label="Entered">${escapeHtml(formatDate(student.entry_at))}</td><td data-col="actions"><div class="row-actions">${action}<button type="button" class="btn btn--sm" data-edit-student="${student.id}" title="Edit entry">Edit</button><button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
     }).join("");
 }
 
@@ -1094,6 +1094,90 @@ function initAdminPage() {
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
     let activeFilter = "all";
+
+    // Build the edit form from the configured dynamic fields plus any fields
+    // that arrived through a generic CSV import.
+    const editOverlay = document.createElement("div");
+    editOverlay.id = "editEntryOverlay";
+    editOverlay.className = "auth-overlay";
+    editOverlay.hidden = true;
+    editOverlay.style.cssText = "z-index:1200; overflow:auto; padding:18px;";
+    editOverlay.innerHTML = `<section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="editEntryTitle" style="width:min(680px,100%);max-height:calc(100vh - 36px);overflow:auto;text-align:left;">
+        <h2 id="editEntryTitle">Edit entry</h2><p>Update the entry details. QR code and check-in history will remain unchanged.</p>
+        <form id="editEntryForm" class="auth-form"><div id="editEntryFields"></div>
+        <div class="page-actions" style="justify-content:flex-end;margin-top:18px"><button type="button" id="cancelEditEntry" class="btn">Cancel</button><button type="submit" id="saveEditEntry" class="btn btn--primary">Save changes</button></div>
+        <div id="editEntryError" class="inline-message" aria-live="polite"></div></form></section>`;
+    document.body.appendChild(editOverlay);
+    const editForm = editOverlay.querySelector("#editEntryForm");
+    const editFieldsContainer = editOverlay.querySelector("#editEntryFields");
+    let editingStudentId = null;
+
+    function openEditEntry(student) {
+        editingStudentId = student.id;
+        const extra = student.extra_data && typeof student.extra_data === "object" ? student.extra_data : {};
+        const definitions = [...adminFields];
+        const defined = new Set(definitions.map(field => String(field.key)));
+        Object.keys(extra).forEach(key => {
+            if (!defined.has(key) && !["name", "extra_data"].includes(key.toLowerCase())) {
+                definitions.push({ key, label: key, type: "text", required: false, options: [] });
+            }
+        });
+        const makeControl = field => {
+            const key = String(field.key || "");
+            const value = extra[key] ?? "";
+            const type = field.type || "text";
+            const id = `editField_${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+            if (type === "checkbox") return `<label class="field" for="${escapeHtml(id)}"><span>${escapeHtml(field.label || key)}</span><input id="${escapeHtml(id)}" type="checkbox" data-edit-key="${escapeHtml(key)}" ${value === true || String(value).toLowerCase() === "true" ? "checked" : ""} ${field.required ? "required" : ""}></label>`;
+            if (type === "select") {
+                const options = (field.options || []).map(option => `<option value="${escapeHtml(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHtml(option)}</option>`).join("");
+                return `<label class="field">${escapeHtml(field.label || key)}${field.required ? " *" : ""}<select id="${escapeHtml(id)}" data-edit-key="${escapeHtml(key)}" ${field.required ? "required" : ""}><option value="">Select…</option>${options}</select></label>`;
+            }
+            if (type === "textarea") return `<label class="field">${escapeHtml(field.label || key)}${field.required ? " *" : ""}<textarea id="${escapeHtml(id)}" data-edit-key="${escapeHtml(key)}" maxlength="${Number(field.max_length || 5000)}" ${field.required ? "required" : ""}>${escapeHtml(value)}</textarea></label>`;
+            const supported = ["text", "email", "tel", "number", "date", "url"].includes(type) ? type : "text";
+            return `<label class="field">${escapeHtml(field.label || key)}${field.required ? " *" : ""}<input id="${escapeHtml(id)}" type="${supported}" data-edit-key="${escapeHtml(key)}" value="${escapeHtml(value)}" maxlength="${supported === "number" ? "" : Number(field.max_length || 5000)}" ${field.required ? "required" : ""} ${field.min !== undefined && field.min !== null ? `min="${escapeHtml(field.min)}"` : ""} ${field.max !== undefined && field.max !== null ? `max="${escapeHtml(field.max)}"` : ""}></label>`;
+        };
+        editFieldsContainer.innerHTML = `<label class="field">Name *<input id="editEntryName" name="name" required maxlength="120" value="${escapeHtml(student.name || "")}"></label>` + definitions.map(makeControl).join("");
+        setMessage(editOverlay.querySelector("#editEntryError"), "");
+        editOverlay.hidden = false;
+        editOverlay.style.display = "grid";
+        editOverlay.querySelector("#editEntryName").focus();
+    }
+
+    function closeEditEntry() {
+        editOverlay.hidden = true;
+        editOverlay.style.display = "none";
+        editingStudentId = null;
+    }
+    editOverlay.querySelector("#cancelEditEntry").addEventListener("click", closeEditEntry);
+    editOverlay.addEventListener("click", event => { if (event.target === editOverlay) closeEditEntry(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && !editOverlay.hidden) closeEditEntry(); });
+    editForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        if (editingStudentId === null) return;
+        const saveButton = editOverlay.querySelector("#saveEditEntry");
+        const extraData = { ...(students.find(item => String(item.id) === String(editingStudentId))?.extra_data || {}) };
+        editFieldsContainer.querySelectorAll("[data-edit-key]").forEach(input => {
+            extraData[input.dataset.editKey] = input.type === "checkbox" ? input.checked : input.value;
+        });
+        saveButton.disabled = true;
+        saveButton.textContent = "Saving…";
+        setMessage(editOverlay.querySelector("#editEntryError"), "Saving changes…");
+        try {
+            const response = await authFetch(`/student/${editingStudentId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: editFieldsContainer.querySelector("#editEntryName").value, extra_data: extraData })
+            });
+            await parseJsonResponse(response);
+            closeEditEntry();
+            await loadStudents("Entry updated successfully.");
+        } catch (error) {
+            setMessage(editOverlay.querySelector("#editEntryError"), error.message || "Could not update this entry.", "error");
+        } finally {
+            saveButton.disabled = false;
+            saveButton.textContent = "Save changes";
+        }
+    });
 
     async function loadStudents(successMessage = null) {
         setMessage(message, "Loading students…");
@@ -1175,6 +1259,13 @@ function initAdminPage() {
                 console.error(error);
                 setMessage(message, "Could not open WhatsApp for this student.", "error");
             }
+            return;
+        }
+
+        const editButton = event.target.closest("button[data-edit-student]");
+        if (editButton) {
+            const student = students.find(item => String(item.id) === String(editButton.dataset.editStudent));
+            if (student) openEditEntry(student);
             return;
         }
 
