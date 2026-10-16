@@ -1116,11 +1116,35 @@ function initAdminPage() {
                 const student = JSON.parse(shareButton.dataset.shareStudent);
                 const qrUrl = window.location.origin + buildStudentQrUrl(student);
 
-                let phone = String(student.contact || "").replace(/\D/g, "");
+                // Phone numbers may be stored in the built-in contact column or in a
+                // custom registration field (for example, "mobile_number").
+                const extraData = student.extra_data && typeof student.extra_data === "object"
+                    ? student.extra_data
+                    : {};
+                const phoneField = adminFields.find((field) => {
+                    const identity = `${field.key || ""} ${field.label || ""}`.toLowerCase();
+                    return field.type === "tel" || /mobile|phone|contact|whatsapp|telephone/.test(identity);
+                });
+                const phoneCandidates = [
+                    student.contact,
+                    ...(phoneField ? [extraData[phoneField.key]] : []),
+                    ...Object.entries(extraData)
+                        .filter(([key]) => /mobile|phone|contact|whatsapp|telephone/i.test(key))
+                        .map(([, value]) => value),
+                ];
+                let rawPhone = phoneCandidates.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+                let phone = String(rawPhone || "").replace(/\\D/g, "");
+                // Support common Indian formats: 10 digits, 0 + 10 digits, or 91 + 10 digits.
+                if (phone.length === 11 && phone.startsWith("0")) phone = phone.slice(1);
                 if (phone.length === 10) phone = "91" + phone;
+                if (phone.length === 12 && phone.startsWith("91")) {
+                    // Valid Indian international format.
+                } else if (phone.length < 8 || phone.length > 15) {
+                    phone = "";
+                }
 
                 if (!phone) {
-                    setMessage(message, "This student has no valid phone number to share to.", "error");
+                    setMessage(message, "This student has no valid phone number to share to. Check the mobile number field.", "error");
                     return;
                 }
 
