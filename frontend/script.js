@@ -367,11 +367,39 @@ function protectPage(onAuthorized) {
 let appConfig = null;
 
 async function loadPublicConfig() {
+    // Apply the last known settings synchronously first. This prevents the
+    // default event name, description, logo, and theme from flashing on refresh.
     try {
-        const response = await fetch("/public-config", { cache: "no-store" });
-        if (response.ok) appConfig = await response.json();
+        const cached = localStorage.getItem("entryDeskPublicConfig");
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === "object") {
+                appConfig = parsed;
+                applyAppConfig();
+            }
+        }
     } catch (error) {
-        console.warn("Could not load event settings; using page defaults.", error);
+        // Ignore unavailable or invalid local cache and load from the server.
+    }
+
+    try {
+        const response = await fetch("/public-config", {
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache" }
+        });
+        if (response.ok) {
+            const freshConfig = await response.json();
+            if (freshConfig && typeof freshConfig === "object") {
+                appConfig = freshConfig;
+                try {
+                    localStorage.setItem("entryDeskPublicConfig", JSON.stringify(freshConfig));
+                } catch (error) {
+                    // Storage may be disabled or full; the app still works.
+                }
+            }
+        }
+    } catch (error) {
+        console.warn("Could not refresh event settings; using cached settings or page defaults.", error);
     }
     applyAppConfig();
 }

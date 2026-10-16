@@ -6,8 +6,65 @@
     <meta name="theme-color" content="#0b6fb8">
     <title>Register a student · Entry Desk</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
-    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
-    <link rel="stylesheet" href="/static/style.css">
+    <script>
+(function () {
+    var config = null;
+    try {
+        config = JSON.parse(localStorage.getItem("entryDeskPublicConfig") || "null");
+        var savedTheme = (config && config.theme) || localStorage.getItem("theme") || "system";
+        if (savedTheme === "system") {
+            savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        if (savedTheme === "dark" || savedTheme === "light") {
+            document.documentElement.dataset.theme = savedTheme;
+        }
+        if (config && /^#[0-9a-f]{6}$/i.test(config.brand_color || "")) {
+            document.documentElement.style.setProperty("--brand", config.brand_color);
+        }
+    } catch (e) {
+        /* Keep the CSS default if browser storage is unavailable. */
+    }
+
+    /* Cached public settings are applied before the first page paint where possible. */
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!config) return;
+        try {
+            var eventName = config.event_name || "Entry Desk";
+            document.querySelectorAll(".brand-name").forEach(function (node) {
+                node.textContent = eventName;
+            });
+            document.querySelectorAll(".ticket-head strong").forEach(function (node) {
+                node.textContent = eventName || "Event";
+            });
+            document.querySelectorAll(".ticket-head span").forEach(function (node) {
+                node.textContent = config.organization_name || "";
+            });
+            if (config.logo_url) {
+                document.querySelectorAll(".brand img, .ticket-head img, .auth-card > img").forEach(function (img) {
+                    img.src = config.logo_url;
+                });
+            }
+            var page = document.body.dataset.page;
+            if (page === "registration") {
+                var heading = document.querySelector(".page-head h1");
+                var description = document.querySelector(".page-head p");
+                if (heading) heading.textContent = eventName || "Register a participant";
+                if (description) description.textContent = config.event_description || "Register to receive a QR entry pass.";
+            } else if (page === "scanner") {
+                var scanHeading = document.querySelector(".page-head h1");
+                var scanDescription = document.querySelector(".page-head p");
+                if (scanHeading) scanHeading.textContent = "Scan entry passes";
+                if (scanDescription) scanDescription.textContent = "Checking in guests for " + eventName + ". Each pass works once.";
+            }
+            var titlePrefix = page === "settings" ? "Settings" : page === "scanner" ? "Scanner" : page === "admin" ? "Dashboard" : page === "registration" ? "Register" : page === "notfound" ? "Page not found" : "Home";
+            document.title = titlePrefix + " · " + eventName;
+        } catch (e) {
+            /* The fresh public config will still be applied by script.js. */
+        }
+    });
+})();
+</script>
+    <link rel="stylesheet" href="/static/style.css?v=20261016-1">
 </head>
 <body data-page="registration">
     <div id="mainContent" class="protected-content" aria-hidden="false" style="display: block;">
@@ -59,6 +116,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js"></script>
+    <script src="/static/script.js?v=20261016-1"></script>
 </body>
 </html>
