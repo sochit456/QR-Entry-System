@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b6fb8">
+    <meta name="description" content="Register attendees, issue QR passes, and manage event entry with Entry Desk.">
+    <title>Entry Desk · QR Entry System</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .home-page{max-width:1120px;margin:0 auto;padding:clamp(24px,5vw,64px) 22px 60px}
+        .home-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(240px,.7fr);gap:34px;align-items:center;padding:clamp(28px,5vw,58px);border:1px solid var(--line);border-radius:28px;background:linear-gradient(135deg,var(--surface),var(--surface-2));box-shadow:var(--shadow,0 16px 40px rgba(20,40,70,.08))}
+        .home-kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border-radius:999px;background:var(--brand-tint);color:var(--brand);font-weight:750;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase}
+        .home-hero h1{font-size:clamp(2.3rem,5vw,4.25rem);line-height:1.06;letter-spacing:-.045em;margin:20px 0 16px;max-width:700px}
+        .home-hero p{font-size:clamp(1rem,1.5vw,1.15rem);line-height:1.75;color:var(--ink-2);max-width:620px;margin:0}
+        .home-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+        .home-actions .btn{min-width:150px;text-align:center;text-decoration:none}
+        .home-visual{display:grid;place-items:center;min-height:250px}
+        .home-pass{width:min(100%,285px);padding:22px;border:1px solid var(--line);border-radius:22px;background:var(--surface);box-shadow:0 24px 50px rgba(20,40,70,.12);transform:rotate(2deg)}
+        .home-pass-top{display:flex;align-items:center;gap:12px;padding-bottom:18px;border-bottom:1px dashed var(--line)}
+        .home-pass-top img{width:48px;height:48px;object-fit:contain;border-radius:12px}
+        .home-pass-top strong,.home-pass-top span{display:block}.home-pass-top span{font-size:.82rem;color:var(--ink-2);margin-top:3px}
+        .home-qr{display:grid;place-items:center;padding:22px 0 14px}.home-qr svg{width:145px;height:145px;color:var(--ink)}
+        .home-pass-foot{font-size:.82rem;color:var(--ink-2);text-align:center}
+        .home-section{margin-top:52px}.home-section-head{text-align:center;max-width:680px;margin:0 auto 24px}.home-section-head h2{font-size:clamp(1.6rem,3vw,2.25rem);margin:0 0 10px;letter-spacing:-.025em}.home-section-head p{margin:0;color:var(--ink-2);line-height:1.7}
+        .feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.feature-card{padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--surface)}
+        .feature-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:13px;background:var(--brand-tint);color:var(--brand);font-size:1.3rem;font-weight:800}.feature-card h3{margin:17px 0 8px;font-size:1.05rem}.feature-card p{margin:0;color:var(--ink-2);line-height:1.65;font-size:.94rem}
+        .home-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;counter-reset:step}.home-step{padding:22px;border-radius:16px;background:var(--surface-2);border:1px solid var(--line)}.home-step::before{counter-increment:step;content:"0" counter(step);display:block;color:var(--brand);font-size:1.3rem;font-weight:850;margin-bottom:12px}.home-step h3{margin:0 0 7px}.home-step p{margin:0;color:var(--ink-2);line-height:1.65;font-size:.94rem}
+        .home-cta{margin-top:48px;padding:clamp(24px,4vw,40px);border-radius:22px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:24px}.home-cta h2{margin:0 0 8px;font-size:clamp(1.4rem,3vw,2rem)}.home-cta p{margin:0;opacity:.9;line-height:1.6}.home-cta .btn{background:#fff;color:#13466c;border-color:#fff;white-space:nowrap}
+        .home-footer{text-align:center;color:var(--ink-2);font-size:.85rem;margin-top:30px}
+        @media(max-width:760px){.home-landing .app-nav{grid-template-columns:repeat(5,minmax(0,1fr))}.home-landing .app-nav a{font-size:.68rem}.home-hero{grid-template-columns:1fr;gap:18px}.home-visual{min-height:0}.home-pass{width:min(100%,250px)}.feature-grid,.home-steps{grid-template-columns:1fr}.home-cta{align-items:flex-start;flex-direction:column}.home-cta .btn{width:100%;text-align:center}}
+    </style>
+</head>
+<body class="home-landing">
+    <header class="app-bar">
+        <div class="app-bar-inner">
+            <a class="brand" href="/"><img src="/static/logo.png" alt=""><span class="brand-name">Entry Desk</span></a>
+            <nav class="app-nav" aria-label="Main">
+                <a href="/" aria-current="page"><span aria-hidden="true">⌂</span>Home</a>
+                <a href="/register"><span aria-hidden="true">＋</span>Register</a>
+                <a href="/scanner"><span aria-hidden="true">▦</span>Scanner</a>
+                <a href="/admin"><span aria-hidden="true">▥</span>Dashboard</a>
+                <a href="/settings"><span aria-hidden="true">⚙</span>Settings</a>
+            </nav>
+        </div>
+    </header>
+    <main class="home-page">
+        <section class="home-hero">
+            <div>
+                <span class="home-kicker">QR-powered event entry</span>
+                <h1>Event check-in, made simple.</h1>
+                <p>Entry Desk helps your team register attendees, issue individual QR passes, and verify entry at the gate. Keep registration details and attendance in one easy-to-use system.</p>
+                <div class="home-actions"><a class="btn btn--primary" href="/register">Register now</a><a class="btn" href="/scanner">Open scanner</a></div>
+            </div>
+            <div class="home-visual" aria-hidden="true">
+                <div class="home-pass">
+                    <div class="home-pass-top"><img src="/static/logo.png" alt=""><div><strong id="homeEventName">Entry Pass</strong><span id="homeOrganization">Event registration</span></div></div>
+                    <div class="home-qr"><svg viewBox="0 0 120 120" fill="currentColor"><path d="M4 4h38v38H4zM12 12v22h22V12zM19 19h8v8h-8zM78 4h38v38H78zM86 12v22h22V12zM93 19h8v8h-8zM4 78h38v38H4zM12 86v22h22V86zM19 93h8v8h-8zM50 4h8v8h-8zM58 12h8v8h-8zM50 28h16v8H50zM46 46h8v8h-8zM62 46h8v8h-8zM78 46h8v8h-8zM94 46h8v8h-8zM46 62h8v8h-8zM54 70h8v8h-8zM70 62h8v16h-8zM86 62h8v8h-8zM102 62h14v8h-14zM46 78h8v8h-8zM62 86h8v8h-8zM78 86h16v8H78zM102 78h8v8h-8zM46 94h16v8H46zM70 102h8v14h-8zM86 102h8v8h-8zM102 94h14v8h-14z"/></svg></div>
+                    <div class="home-pass-foot">One pass · One verified entry</div>
+                </div>
+            </div>
+        </section>
+        <section class="home-section">
+            <div class="home-section-head"><h2>Everything you need at the gate</h2><p>Tools for event organizers and entry staff, from the first registration to the final attendance count.</p></div>
+            <div class="feature-grid">
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">＋</div><h3>Flexible registration</h3><p>Collect attendee names and configurable custom fields to suit your event's registration process.</p></article>
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">▦</div><h3>Individual QR passes</h3><p>Generate a unique QR pass for each registration and let attendees download it for check-in.</p></article>
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">✓</div><h3>Fast entry verification</h3><p>Scan a pass at the gate and check whether it is valid or has already been used.</p></article>
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">▥</div><h3>Live attendance dashboard</h3><p>View registered, entered, and remaining attendees, with search and status filters.</p></article>
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">⇅</div><h3>CSV import and export</h3><p>Back up attendee records or import an existing list to help manage registrations in bulk.</p></article>
+                <article class="feature-card"><div class="feature-icon" aria-hidden="true">⚙</div><h3>Event customization</h3><p>Configure event details, branding, registration fields, and scanner feedback from settings.</p></article>
+            </div>
+        </section>
+        <section class="home-section">
+            <div class="home-section-head"><h2>How it works</h2><p>A straightforward workflow for organizers and attendees.</p></div>
+            <div class="home-steps">
+                <article class="home-step"><h3>Register</h3><p>Enter attendee details and issue a QR pass with the registration form.</p></article>
+                <article class="home-step"><h3>Share the pass</h3><p>Download the generated QR code and provide it to the attendee.</p></article>
+                <article class="home-step"><h3>Scan at entry</h3><p>Verify the pass at the gate and monitor attendance in the dashboard.</p></article>
+            </div>
+        </section>
+        <section class="home-cta"><div><h2>Ready to get your event moving?</h2><p>Start with a registration, or open the scanner when your gate team is ready.</p></div><a class="btn" href="/register">Go to registration</a></section>
+        <footer class="home-footer">Entry Desk · QR Entry System</footer>
+    </main>
+    <script>
+        fetch('/public-config').then(r=>r.ok?r.json():null).then(c=>{if(!c)return;const n=document.getElementById('homeEventName');const o=document.getElementById('homeOrganization');if(n&&c.event_name)n.textContent=c.event_name;if(o&&c.organization_name)o.textContent=c.organization_name;document.title=(c.event_name||'Entry Desk')+' · QR Entry System';}).catch(()=>{});
+    </script>
+</body>
+</html>

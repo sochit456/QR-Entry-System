@@ -1442,7 +1442,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadPublicConfig();
 
     if (page === "registration") {
-        protectPage(initRegistrationPage);
+        const registrationContent = document.getElementById("mainContent");
+        if (registrationContent) {
+            registrationContent.style.display = "block";
+            registrationContent.setAttribute("aria-hidden", "false");
+        }
+        initRegistrationPage();
     } else if (page === "scanner") {
         protectPage(initScannerPage);
     } else if (page === "admin") {
