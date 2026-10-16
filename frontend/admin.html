@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b6fb8">
     <title>Dashboard · Entry Desk</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
     <script>(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()</script>
@@ -16,7 +17,7 @@
             <p>Enter the staff password to continue.</p>
             <form id="authForm" class="auth-form">
                 <label class="field">Password
-                    <input id="authPassword" type="password" autocomplete="current-password" required>
+                    <input id="authPassword" type="password" autocomplete="current-password" enterkeyhint="go" required>
                 </label>
                 <button type="submit" class="btn btn--primary btn--block">Unlock</button>
                 <div id="authError" class="auth-error" aria-live="polite"></div>
@@ -27,7 +28,7 @@
     <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
         <header class="app-bar">
             <div class="app-bar-inner">
-                <a class="brand" href="/"><img src="/static/logo.png" alt="">Entry Desk</a>
+                <a class="brand" href="/"><img src="/static/logo.png" alt=""><span class="brand-name">Entry Desk</span></a>
                 <nav class="app-nav" aria-label="Main"><a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 5 17.5V19"/><circle cx="10" cy="8" r="3.2"/><path d="M19 8v5M16.5 10.5h5"/></svg>Register</a><a href="/scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Scanner</a><a href="/admin" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Dashboard</a><a href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a></nav>
             </div>
         </header>
@@ -35,7 +36,7 @@
             <div class="page-head">
                 <div>
                     <h1>Dashboard</h1>
-                    <p>Track Live Entry and manage the guest list.</p>
+                    <p>Watch entries as they happen and manage the guest list.</p>
                 </div>
                 <div class="page-actions">
                     <input id="importCsvInput" type="file" accept=".csv" style="display: none;">
@@ -49,7 +50,7 @@
                 <div class="summary-grid">
                     <div class="summary-item"><span>Registered</span><strong id="statTotal">0</strong></div>
                     <div class="summary-item"><span>Entered</span><strong id="statUsed">0</strong></div>
-                    <div class="summary-item"><span>Yet to Enter</span><strong id="statRemaining">0</strong></div>
+                    <div class="summary-item"><span>Yet to enter</span><strong id="statRemaining">0</strong></div>
                 </div>
                 <div class="summary-bar">
                     <div><span>Attendance</span><span id="statPercent">0%</span></div>
@@ -58,11 +59,11 @@
             </section>
 
             <div class="toolbar">
-                <input id="searchRoll" type="search" placeholder="Search by unique field" aria-label="Search by roll number">
+                <input id="searchRoll" type="search" placeholder="Search by unique field" aria-label="Search guests">
                 <div class="segmented" role="group" aria-label="Filter by status">
                     <button type="button" class="filter-chip active" data-filter="all">All</button>
                     <button type="button" class="filter-chip" data-filter="used">Entered</button>
-                    <button type="button" class="filter-chip" data-filter="not-used">Not Entered</button>
+                    <button type="button" class="filter-chip" data-filter="not-used">Not entered</button>
                 </div>
             </div>
             <div id="adminMessage" class="inline-message" aria-live="polite"></div>
@@ -74,7 +75,7 @@
                             <th>Name</th><th>Status</th><th>QR</th><th>Registered</th><th>Entered</th><th>Actions</th>
                         </tr></thead>
                         <tbody id="studentsTableBody">
-                            <tr><td colspan="6" class="empty-state">Loading students…</td></tr>
+                            <tr><td colspan="6" class="empty-state">Loading guest list…</td></tr>
                         </tbody>
                     </table>
                 </div>

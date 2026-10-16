@@ -110,7 +110,7 @@ async function parseJsonResponse(response) {
 }
 
 function formatDate(value) {
-    if (!value) return "-";
+    if (!value) return "—";
 
     const normalizedValue =
         typeof value === "string" && !/(Z|[+\-]\d{2}:\d{2})$/.test(value)
@@ -246,6 +246,27 @@ function showSessionContinueModal({ onContinue, onLogout }) {
     });
 }
 
+function addPasswordToggle(input) {
+    if (!input || input.parentElement.classList.contains("password-wrap")) return;
+    const wrap = document.createElement("span");
+    wrap.className = "password-wrap";
+    input.parentElement.insertBefore(wrap, input);
+    wrap.append(input);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "password-toggle";
+    toggle.textContent = "Show";
+    toggle.setAttribute("aria-label", "Show password");
+    toggle.addEventListener("click", () => {
+        const reveal = input.type === "password";
+        input.type = reveal ? "text" : "password";
+        toggle.textContent = reveal ? "Hide" : "Show";
+        toggle.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+        input.focus();
+    });
+    wrap.append(toggle);
+}
+
 function protectPage(onAuthorized) {
     const overlay = document.getElementById("loginOverlay");
     const form = document.getElementById("authForm");
@@ -289,6 +310,7 @@ function protectPage(onAuthorized) {
         return;
     }
 
+    addPasswordToggle(passwordInput);
     const existingToken = getAuthToken();
 
     if (existingToken && !isTokenExpired(existingToken)) {
@@ -330,7 +352,7 @@ function protectPage(onAuthorized) {
             showMainContent();
         } catch (err) {
             clearAuthToken();
-            if (error) error.textContent = "Incorrect Password";
+            if (error) error.textContent = "That password isn't right. Try again.";
             passwordInput.select();
         } finally {
             if (submitButton) submitButton.disabled = false;
@@ -354,18 +376,30 @@ async function loadPublicConfig() {
     applyAppConfig();
 }
 
+// Sets the event's brand colour. Hover/tint shades are derived in CSS, and the
+// text colour on brand buttons flips to dark when the colour is light.
+function applyBrandColor(color) {
+    const root = document.documentElement;
+    root.style.setProperty("--brand", color);
+    const hex = /^#([0-9a-f]{6})$/i.exec(color);
+    if (!hex) return;
+    const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(hex[1].slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    root.style.setProperty("--on-brand", luminance > 0.42 ? "#102033" : "#ffffff");
+}
+
 function applyAppConfig() {
     if (!appConfig) return;
     const cfg = appConfig;
-    document.documentElement.style.setProperty("--brand", cfg.brand_color || "#0b6fb8");
-    document.documentElement.style.setProperty("--brand-hover", cfg.brand_color || "#0b6fb8");
-    document.documentElement.style.setProperty("--brand-tint", `${cfg.brand_color || "#0b6fb8"}20`);
+    applyBrandColor(cfg.brand_color || "#0b6fb8");
     if (cfg.theme) applyTheme(cfg.theme);
     document.querySelectorAll(".brand").forEach((brand) => {
         const img = brand.querySelector("img");
         if (img && cfg.logo_url) img.src = cfg.logo_url;
-        const textNode = [...brand.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
-        if (textNode) textNode.textContent = ` ${cfg.event_name || "Entry Desk"}`;
+        const nameNode = brand.querySelector(".brand-name");
+        if (nameNode) nameNode.textContent = cfg.event_name || "Entry Desk";
     });
     document.querySelectorAll(".ticket-head img, .auth-card > img").forEach((img) => {
         if (cfg.logo_url) img.src = cfg.logo_url;
@@ -377,8 +411,26 @@ function applyAppConfig() {
         const description = document.querySelector(".page-head p");
         if (heading) heading.textContent = cfg.event_name || "Register a participant";
         if (description) {
-            const eventMeta = [cfg.event_date, cfg.event_location].filter(Boolean).join(" · ");
-            description.textContent = [cfg.event_description || "Register to receive a QR entry pass.", eventMeta].filter(Boolean).join(" · ");
+            description.textContent = cfg.event_description || "Register to receive a QR entry pass.";
+            description.parentElement.querySelector(".event-meta")?.remove();
+            const meta = document.createElement("div");
+            meta.className = "event-meta";
+            const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+            if (cfg.event_date) {
+                const when = new Date(`${cfg.event_date}T00:00:00`);
+                const label = Number.isNaN(when.getTime()) ? cfg.event_date : when.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+                const span = document.createElement("span");
+                span.innerHTML = icon('<path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>');
+                span.append(label);
+                meta.append(span);
+            }
+            if (cfg.event_location) {
+                const span = document.createElement("span");
+                span.innerHTML = icon('<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>');
+                span.append(cfg.event_location);
+                meta.append(span);
+            }
+            if (meta.children.length) description.after(meta);
         }
         renderCustomRegistrationFields(cfg.custom_fields || [], {});
         const form = document.getElementById("registrationForm");
@@ -391,10 +443,10 @@ function applyAppConfig() {
     if (page === "scanner") {
         const heading = document.querySelector(".page-head h1");
         const description = document.querySelector(".page-head p");
-        if (heading) heading.textContent = `${cfg.event_name || "Event"} — QR scanner`;
-        if (description) description.textContent = "Point the camera at a participant's QR pass to verify entry.";
+        if (heading) heading.textContent = "Scan entry passes";
+        if (description) description.textContent = `Checking in guests for ${cfg.event_name || "the event"}. Each pass works once.`;
     }
-    document.title = `${cfg.event_name || "Entry Desk"} · ${page === "settings" ? "Settings" : page === "scanner" ? "Scanner" : page === "admin" ? "Dashboard" : "Registration"}`;
+    document.title = `${page === "notfound" ? "Page not found" : page === "settings" ? "Settings" : page === "scanner" ? "Scanner" : page === "admin" ? "Dashboard" : "Register"} · ${cfg.event_name || "Entry Desk"}`;
 }
 
 function renderCustomRegistrationFields(fields, coreSettings = {}) {
@@ -412,7 +464,7 @@ function renderCustomRegistrationFields(fields, coreSettings = {}) {
         const type = field.type || "text";
         if (type === "select") {
             input = document.createElement("select");
-            const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = field.placeholder || `Select ${String(field.label || key).toLowerCase()}`; placeholder.disabled = true; placeholder.selected = true; input.append(placeholder);
+            const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = field.placeholder || `Select ${String(field.label || key).toLowerCase()}`; placeholder.disabled = true; placeholder.defaultSelected = true; placeholder.selected = true; input.append(placeholder);
             const options = field.options || [];
             options.forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; input.append(option); });
         } else if (type === "textarea") {
@@ -441,21 +493,23 @@ function renderCustomRegistrationFields(fields, coreSettings = {}) {
 function customFieldEditorRow(field = {}) {
     const row = document.createElement("div"); row.className = "custom-field-row";
     row.innerHTML = `
-      <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field>Remove</button></div>
+      <div class="custom-field-top"><span class="custom-field-number">Custom field</span><button type="button" class="btn btn--sm btn--danger" data-remove-field aria-label="Remove this field">Remove</button></div>
       <div class="form-grid field-editor-grid">
         <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label || "")}" placeholder="Department" required></label>
-        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[A-Z][A-Za-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="Department" required><small>Stable key; changing it won't rename existing saved data.</small></label>
+        <label class="field">Field key<input data-prop="key" maxlength="40" pattern="[A-Z][A-Za-z0-9_]*" value="${escapeHtml(field.key || "")}" placeholder="Department" required><small>Changing the key won't rename data already saved.</small></label>
         <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="textarea">Long text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="date">Date</option><option value="url">Website URL</option><option value="select">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
         <label class="field">Layout width<select data-prop="width"><option value="full">Full width</option><option value="half">Half width</option><option value="third">One-third width</option></select></label>
+        <label class="field custom-options">Dropdown options<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce, Arts"><small>Separate options with commas.</small></label>
+      </div>
+      <details class="field-advanced"><summary>More options</summary><div class="form-grid field-editor-grid">
         <label class="field">Placeholder<input data-prop="placeholder" maxlength="160" value="${escapeHtml(field.placeholder || "")}" placeholder="e.g. Enter department"></label>
         <label class="field">Help text<input data-prop="help_text" maxlength="250" value="${escapeHtml(field.help_text || "")}" placeholder="Shown below the field"></label>
-        <label class="field custom-options">Dropdown options<input data-prop="options" value="${escapeHtml((field.options || []).join(", "))}" placeholder="IT, Commerce, Arts"><small>Separate options with commas.</small></label>
         <label class="field">Minimum length<input data-prop="min_length" type="number" min="0" max="500" value="${Number(field.min_length || 0)}"></label>
         <label class="field">Maximum length<input data-prop="max_length" type="number" min="1" max="5000" value="${Number(field.max_length || 250)}"></label>
         <label class="field">Minimum value<input data-prop="min" type="number" step="any" value="${field.min ?? ""}" placeholder="No minimum"></label>
         <label class="field">Maximum value<input data-prop="max" type="number" step="any" value="${field.max ?? ""}" placeholder="No maximum"></label>
         <label class="field">Custom validation pattern<input data-prop="pattern" maxlength="200" value="${escapeHtml(field.pattern || "")}" placeholder="e.g. [A-Z0-9]+"><small>Regular expression; leave blank for no custom pattern.</small></label>
-      </div>
+      </div></details>
       <div class="field-rule-toggles">
         <label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required</strong><small>Must be filled.</small></span></label>
         <label class="check-row"><input data-prop="unique" type="checkbox" ${field.unique ? "checked" : ""}><span><strong>Unique / no duplicates</strong><small>Reject an already registered value.</small></span></label>
@@ -540,13 +594,7 @@ function updateSettingsPreview() {
     const mark = document.getElementById("previewBrandMark");
     const color = value("brand_color") || "#0b6fb8";
     applyTheme(value("theme") || "system");
-    const rgb = color.match(/^#([0-9a-f]{6})$/i);
-    if (rgb) {
-        const hex = rgb[1];
-        const channels = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4));
-        const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-        document.documentElement.style.setProperty("--on-brand", luminance > 0.42 ? "#102033" : "#ffffff");
-    }
+    applyBrandColor(color);
     const colorValue = document.getElementById("brandColorValue");
     if (name) name.textContent = eventName;
     if (org) org.textContent = organization;
@@ -562,11 +610,8 @@ function updateSettingsPreview() {
         } else mark.textContent = eventName.slice(0, 1).toUpperCase();
     }
     if (colorValue) colorValue.textContent = color.toUpperCase();
-    document.documentElement.style.setProperty("--brand", color);
-    document.documentElement.style.setProperty("--brand-hover", color);
-    document.documentElement.style.setProperty("--brand-tint", `${color}20`);
     const meta = document.getElementById("summaryEventMeta");
-    if (meta) meta.textContent = [date, location].filter(Boolean).join(" · ") || "Set a date and location to show them here.";
+    if (meta) meta.textContent = [date, location].filter(Boolean).join(", ") || "Set a date and location to show them here.";
     const summaryName = document.getElementById("summaryEventName");
     if (summaryName) summaryName.textContent = eventName;
     const reg = document.getElementById("summaryRegistration");
@@ -608,14 +653,19 @@ function initSettingsAccordion() {
         const toggle = document.createElement("button");
         toggle.type = "button"; toggle.className = "settings-accordion-trigger";
         toggle.setAttribute("aria-expanded", index === 0 ? "true" : "false");
-        toggle.innerHTML = '<span class="accordion-chevron" aria-hidden="true">⌄</span>';
+        toggle.setAttribute("aria-label", `Toggle ${heading.querySelector("h2")?.textContent || "section"}`);
+        toggle.innerHTML = '<span class="accordion-chevron" aria-hidden="true"></span>';
         heading.append(toggle); heading.classList.add("accordion-heading");
         body.forEach(node => node.classList.add("settings-accordion-content"));
         section.classList.toggle("is-collapsed", index !== 0);
+        heading.addEventListener("click", (event) => { if (!event.target.closest("button")) toggle.click(); });
         toggle.addEventListener("click", () => {
             const shouldOpen = section.classList.contains("is-collapsed");
             sections.forEach(other => { other.classList.add("is-collapsed"); other.querySelector(".settings-accordion-trigger")?.setAttribute("aria-expanded", "false"); });
-            if (shouldOpen) { section.classList.remove("is-collapsed"); toggle.setAttribute("aria-expanded", "true"); }
+            if (shouldOpen) {
+                section.classList.remove("is-collapsed"); toggle.setAttribute("aria-expanded", "true");
+                if (window.matchMedia("(max-width: 720px)").matches) section.scrollIntoView({ block: "start" });
+            }
         });
     });
 }
@@ -817,6 +867,12 @@ function setScanStatus(status, title, message) {
 
 function initScannerPage() {
     const scannerHint = document.getElementById("scannerHint");
+    const cameraPill = document.getElementById("cameraPill");
+    function setCameraPill(isLive, label) {
+        if (!cameraPill) return;
+        cameraPill.textContent = label;
+        cameraPill.classList.toggle("is-off", !isLive);
+    }
     const switchCameraButton = document.getElementById("switchCameraButton");
     let isVerifying = false;
     let scanLockedUntil = 0;
@@ -904,10 +960,12 @@ function initScannerPage() {
             );
 
             scannerActive = true;
+            setCameraPill(true, "Camera live");
             scannerHint.textContent = `Scanner is active using the ${currentFacingMode === "environment" ? "rear" : "front"} camera.`;
             setScanStatus("neutral", "Ready to scan", "Hold a student QR pass in front of the camera.");
         } catch (error) {
-            scannerHint.textContent = "Camera start failed. Please allow access and refresh the page.";
+            setCameraPill(false, "Camera off");
+            scannerHint.textContent = "Camera didn't start. Allow camera access in your browser settings, then reload.";
             setScanStatus("invalid", "Scanner unavailable", String(error));
             throw error;
         } finally {
@@ -975,14 +1033,15 @@ function renderStudents(students, activeFilter) {
     });
     const colSpan = columns.length + 5;
     if (!filteredStudents.length) {
-        tableBody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">No students match this search or filter.</td></tr>`;
+        const nothingYet = !students.length;
+        tableBody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">${nothingYet ? "No guests yet. Register the first guest or import a CSV." : "No guests match this search or filter."}</td></tr>`;
         return;
     }
     tableBody.innerHTML = filteredStudents.map(student => {
         const qrUrl = buildStudentQrUrl(student);
         const action = student.is_used ? `<button type="button" class="btn btn--sm" data-reset-entry="${student.id}">Undo</button>` : `<button type="button" class="btn btn--sm btn--tint" data-manual-entry="${student.id}">Enter</button>`;
-        const dynamicCells = columns.map(col => `<td>${escapeHtml(studentFieldValue(student, col.key) ?? "") || "—"}</td>`).join("");
-        return `<tr>${dynamicCells}<td><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td><td><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when">${escapeHtml(formatDate(student.created_at))}</td><td class="when">${escapeHtml(formatDate(student.entry_at))}</td><td><div class="row-actions">${action}<button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
+        const dynamicCells = columns.map(col => `<td data-col="${col.key === "name" ? "name" : "field"}" data-label="${escapeHtml(col.label)}">${escapeHtml(studentFieldValue(student, col.key) ?? "") || "—"}</td>`).join("");
+        return `<tr>${dynamicCells}<td data-col="status"><span class="badge ${student.is_used ? "used" : "not-used"}">${student.is_used ? "Checked in" : "Not entered"}</span></td><td data-col="qr"><a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener"><img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}"></a></td><td class="when" data-col="when" data-label="Registered">${escapeHtml(formatDate(student.created_at))}</td><td class="when" data-col="when" data-label="Entered">${escapeHtml(formatDate(student.entry_at))}</td><td data-col="actions"><div class="row-actions">${action}<button type="button" class="btn btn--sm btn--icon" title="Send pass on WhatsApp" aria-label="Send pass to ${escapeHtml(student.name)} on WhatsApp" data-share-student="${escapeHtml(JSON.stringify(student))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4 10 14M21 4l-6.5 17-3.5-7-7-3.5z"/></svg></button><button type="button" class="btn btn--sm btn--icon btn--danger" title="Delete student" aria-label="Delete ${escapeHtml(student.name)}" data-delete-student="${student.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button></div></td></tr>`;
     }).join("");
 }
 
@@ -1033,10 +1092,10 @@ function initAdminPage() {
             searchRoll.setAttribute("aria-label", searchRoll.placeholder);
             updateAdminStats(students);
             renderStudents(students, activeFilter);
-            setMessage(message, successMessage || `${students.length} students registered.`, "success");
+            setMessage(message, successMessage || `${students.length} ${students.length === 1 ? "guest" : "guests"} registered.`, "success");
         } catch (error) {
             tableBody.innerHTML =
-                '<tr><td colspan="7" class="empty-state">Could not load students. Check your connection and refresh.</td></tr>';
+                '<tr><td colspan="7" class="empty-state">Couldn\'t load the guest list. Check your connection, then tap Refresh.</td></tr>';
             setMessage(message, error.message, "error");
         } finally {
             refreshButton.disabled = false;
