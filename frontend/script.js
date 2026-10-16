@@ -1023,18 +1023,7 @@ function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
     const tableHead = document.getElementById("studentsTableHead");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-    const configuredColumns = adminFields.map(field => ({key:field.key, label:field.label || field.key}));
-    // Also show every column imported from arbitrary CSV files, even when it is
-    // not part of the currently configured registration form.
-    const knownKeys = new Set(["name", ...configuredColumns.map(col => col.key)]);
-    const csvColumns = [];
-    const csvLabels = new Map();
-    students.forEach(student => Object.keys(student.extra_data || {}).forEach(key => {
-        if (knownKeys.has(key) || key.toLowerCase() === "extra_data") return;
-        if (!csvLabels.has(key)) csvLabels.set(key, key);
-    }));
-    csvLabels.forEach((label, key) => csvColumns.push({key, label}));
-    const columns = [{key:"name", label:"Name"}, ...configuredColumns, ...csvColumns];
+    const columns = [{key:"name", label:"Name"}, ...adminFields.map(field => ({key:field.key, label:field.label || field.key}))];
     if (tableHead) tableHead.innerHTML = [...columns.map(col => `<th>${escapeHtml(col.label)}</th>`), "<th>Status</th>", "<th>QR</th>", "<th>Registered</th>", "<th>Entered</th>", "<th>Actions</th>"].join("");
     const filteredStudents = students.filter(student => {
         const searchText = String(studentFieldValue(student, adminSearchField) ?? "").toLowerCase();
@@ -1245,51 +1234,46 @@ function initAdminPage() {
     importCsvButton?.addEventListener("click", () => importCsvInput.click());
 
     importCsvInput?.addEventListener("change", async () => {
-        const file = importCsvInput.files[0];
+        const file = importCsvInput.files?.[0];
         if (!file) return;
-
-        // Let the administrator explicitly choose whether to replace or append.
-        // Canceling the prompt safely aborts without uploading or changing data.
-        const selectedMode = window.prompt(
-            "How should this CSV be imported?\n\nType REPLACE to delete all existing student records and import this file.\nType ADD to keep existing records and add only new, non-duplicate rows.\n\nType REPLACE or ADD:",
-            "ADD"
-        );
-        const mode = (selectedMode || "").trim().toLowerCase();
         importCsvInput.value = "";
-        if (!mode) {
+
+        if (!file.name.toLowerCase().endsWith(".csv")) {
+            setMessage(message, "Please select a .csv backup file.", "error");
+            return;
+        }
+
+        const choice = window.prompt(
+            `Import backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all existing student records with this backup.\nType CANCEL (or leave blank) to stop.`
+        );
+        const mode = String(choice || "").trim().toLowerCase();
+        if (mode !== "add" && mode !== "replace") {
             setMessage(message, "CSV import cancelled. No data was changed.");
             return;
         }
-        if (!["replace", "add"].includes(mode)) {
-            setMessage(message, "Import cancelled. Please type exactly REPLACE or ADD.", "error");
-            return;
-        }
-        if (mode === "replace" && !window.confirm("Replace ALL existing student records with the contents of this CSV? This cannot be undone.")) {
+        if (mode === "replace" && !window.confirm(
+            "This will permanently replace all current student records with the records in this CSV backup. App settings will not be changed. Continue?"
+        )) {
             setMessage(message, "CSV replacement cancelled. No data was changed.");
             return;
         }
 
         importCsvButton.disabled = true;
         importCsvButton.textContent = "Importing…";
-        setMessage(message, mode === "replace" ? "Replacing existing data with CSV..." : "Adding new CSV records...");
+        setMessage(message, mode === "replace" ? "Validating backup and replacing student records…" : "Validating backup and adding new records…");
 
         const formData = new FormData();
         formData.append("file", file);
         formData.append("mode", mode);
 
         try {
-            const data = await parseJsonResponse(
-                await authFetch("/import", { method: "POST", body: formData })
-            );
-
-            const summary = `${mode === "replace" ? "Replacement complete" : "Import complete"}: imported ${data.imported} record(s), skipped ${data.skipped} duplicate/invalid record(s).`;
-            const detail = data.errors.length
-                ? ` Issues: ${data.errors.join(" | ")}`
-                : "";
-            setMessage(message, summary + detail, data.imported > 0 ? "success" : "error");
+            const response = await authFetch("/import", { method: "POST", body: formData });
+            const data = await parseJsonResponse(response);
+            const summary = `${data.message || "CSV import completed."} Imported ${data.imported} record(s); skipped ${data.skipped}.`;
+            setMessage(message, summary, "success");
             await loadStudents();
         } catch (error) {
-            setMessage(message, error.message, "error");
+            setMessage(message, error.message || "CSV import failed. No data was changed.", "error");
         } finally {
             importCsvButton.disabled = false;
             importCsvButton.textContent = "Import CSV";
@@ -1300,7 +1284,12 @@ function initAdminPage() {
         try {
             const response = await authFetch("/export");
             if (!response.ok) {
-                throw new Error("Failed to download the CSV export.");
+                let detail = "Failed to download the CSV backup.";
+                try {
+                    const errorData = await response.json();
+                    detail = errorData.detail || detail;
+                } catch (_) {}
+                throw new Error(detail);
             }
 
             const blob = await response.blob();
@@ -1311,7 +1300,7 @@ function initAdminPage() {
             document.body.appendChild(link);
             link.click();
             link.remove();
-            window.URL.revokeObjectURL(blobUrl);
+            window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
         } catch (error) {
             setMessage(message, error.message, "error");
         }
