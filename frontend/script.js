@@ -1023,7 +1023,18 @@ function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
     const tableHead = document.getElementById("studentsTableHead");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-    const columns = [{key:"name", label:"Name"}, ...adminFields.map(field => ({key:field.key, label:field.label || field.key}))];
+    const configuredColumns = adminFields.map(field => ({key:field.key, label:field.label || field.key}));
+    // Also show every column imported from arbitrary CSV files, even when it is
+    // not part of the currently configured registration form.
+    const knownKeys = new Set(["name", ...configuredColumns.map(col => col.key)]);
+    const csvColumns = [];
+    const csvLabels = new Map();
+    students.forEach(student => Object.keys(student.extra_data || {}).forEach(key => {
+        if (knownKeys.has(key) || key.toLowerCase() === "extra_data") return;
+        if (!csvLabels.has(key)) csvLabels.set(key, key);
+    }));
+    csvLabels.forEach((label, key) => csvColumns.push({key, label}));
+    const columns = [{key:"name", label:"Name"}, ...configuredColumns, ...csvColumns];
     if (tableHead) tableHead.innerHTML = [...columns.map(col => `<th>${escapeHtml(col.label)}</th>`), "<th>Status</th>", "<th>QR</th>", "<th>Registered</th>", "<th>Entered</th>", "<th>Actions</th>"].join("");
     const filteredStudents = students.filter(student => {
         const searchText = String(studentFieldValue(student, adminSearchField) ?? "").toLowerCase();
