@@ -358,8 +358,8 @@ tbody tr:hover:has(.empty-state){background:transparent}
   body{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px))}
   .app-bar-inner,.page{width:calc(100% - 32px)}
   .app-bar-inner{height:56px}
-  .app-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));min-height:var(--nav-h)}
-  .app-nav a{flex-direction:column;justify-content:center;gap:3px;padding:7px 2px;font-size:.72rem;min-height:52px;border-radius:12px}
+  .app-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));min-height:var(--nav-h);box-shadow:0 -8px 24px rgba(16,32,56,.08);backdrop-filter:saturate(150%) blur(14px)}
+  .app-nav a{flex-direction:column;justify-content:center;gap:3px;padding:7px 2px;font-size:.70rem;min-height:52px;border-radius:12px}
   .app-nav svg{width:22px;height:22px}
   .page{padding:22px 0 36px}
   .page-head{margin-bottom:20px}
