@@ -208,7 +208,12 @@ async def custom_404_handler(request: Request, exc):
 
 
 @app.get("/", include_in_schema=False)
-def serve_index():
+def serve_home():
+    return FileResponse(BASE_DIR / "frontend" / "home.html")
+
+
+@app.get("/register", include_in_schema=False)
+def serve_registration():
     return FileResponse(BASE_DIR / "frontend" / "index.html")
 
 
