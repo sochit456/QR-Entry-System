@@ -204,32 +204,32 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 # Custom 404 Exception Handler
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
-    return FileResponse(BASE_DIR / "frontend" / "404.html", status_code=404)
+    return FileResponse(BASE_DIR / "frontend" / "404.html", status_code=404, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/", include_in_schema=False)
 def serve_home():
-    return FileResponse(BASE_DIR / "frontend" / "index.html")
+    return FileResponse(BASE_DIR / "frontend" / "index.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/register", include_in_schema=False)
 def serve_registration():
-    return FileResponse(BASE_DIR / "frontend" / "register.html")
+    return FileResponse(BASE_DIR / "frontend" / "register.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/scanner", include_in_schema=False)
 def serve_scanner():
-    return FileResponse(BASE_DIR / "frontend" / "scanner.html")
+    return FileResponse(BASE_DIR / "frontend" / "scanner.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/admin", include_in_schema=False)
 def serve_admin():
-    return FileResponse(BASE_DIR / "frontend" / "admin.html")
+    return FileResponse(BASE_DIR / "frontend" / "admin.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/settings", include_in_schema=False)
 def serve_settings():
-    return FileResponse(BASE_DIR / "frontend" / "settings.html")
+    return FileResponse(BASE_DIR / "frontend" / "settings.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/health")
