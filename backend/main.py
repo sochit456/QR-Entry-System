@@ -4,7 +4,6 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
-from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
