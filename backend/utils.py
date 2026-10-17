@@ -7,6 +7,11 @@ import qrcode
 
 
 TOKEN_ALPHABET = string.ascii_uppercase + string.digits
+_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{1,20}")
+
+
+def is_valid_token(token: str) -> bool:
+    return bool(token) and _TOKEN_RE.fullmatch(token) is not None
 
 
 def generate_token(min_length: int = 10, max_length: int = 15) -> str:

@@ -1,5 +1,8 @@
 import csv
 import io
+import os
+import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
@@ -8,13 +11,21 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.auth import create_access_token, require_admin, verify_admin_password
+from backend.auth import (
+    client_ip,
+    create_access_token,
+    login_limiter,
+    register_limiter,
+    require_admin,
+    validate_auth_config,
+    verify_admin_password,
+)
 from backend.database import Base, engine, get_db
 from backend.models import Student, AppSettings
 from backend.schemas import (
@@ -28,11 +39,29 @@ from backend.schemas import (
     VerifyQRRequest,
     VerifyQRResponse,
 )
-from backend.utils import generate_qr_image, generate_token
+from backend.utils import generate_qr_image, generate_token, is_valid_token
 
 load_dotenv()
+validate_auth_config()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+_register_lock = threading.Lock()
+
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value) -> str:
+    """Neutralise spreadsheet formula injection in exported CSV cells."""
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(_FORMULA_PREFIXES) else text
+
+
+def csv_unsafe(value: str) -> str:
+    """Undo csv_safe() when restoring one of our own backups."""
+    if len(value) > 1 and value[0] == "'" and value[1] in "=+-@\t\r":
+        return value[1:]
+    return value
 
 
 def sanitize_input(value: str, field_name: str) -> str:
@@ -110,9 +139,19 @@ def get_settings(db: Session) -> dict:
 
 def clean_settings(payload: dict) -> dict:
     result = DEFAULT_SETTINGS.copy()
-    result.update(payload)
+    # Only accept known settings keys; ignore anything else in the request body.
+    result.update({key: value for key, value in payload.items() if key in DEFAULT_SETTINGS})
     for key in ("event_name", "organization_name", "event_description"):
         result[key] = str(result.get(key, "")).strip()[:500]
+    result["event_date"] = str(result.get("event_date") or "").strip()[:40]
+    result["event_location"] = str(result.get("event_location") or "").strip()[:200]
+    logo_url = str(result.get("logo_url") or "").strip()
+    if logo_url:
+        is_local_path = re.fullmatch(r"/[A-Za-z0-9._~/-]{1,200}", logo_url) is not None and ".." not in logo_url
+        is_http_url = re.fullmatch(r"https?://[^\s\"'<>\\]{1,500}", logo_url) is not None
+        if not (is_local_path or is_http_url):
+            raise HTTPException(status_code=400, detail="Logo must be a local /path or an http(s) URL.")
+    result["logo_url"] = logo_url or DEFAULT_SETTINGS["logo_url"]
     if not result["event_name"]:
         raise HTTPException(status_code=400, detail="Event name is required.")
     color = str(result.get("brand_color", "#0b6fb8"))
@@ -190,15 +229,36 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# The frontend is served by this app (same origin), so cross-origin access is off
+# unless explicitly enabled with a comma-separated CORS_ALLOWED_ORIGINS list.
+_cors_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip() and o.strip() != "*"]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+MAX_BODY_BYTES = 1_000_000  # /import has its own 25 MB limit below
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    if request.method in ("POST", "PUT", "PATCH") and request.url.path != "/import":
+        length = request.headers.get("content-length", "")
+        if length.isdigit() and int(length) > MAX_BODY_BYTES:
+            return JSONResponse({"detail": "Request body too large."}, status_code=413)
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+    return response
+
+
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "frontend")), name="static")
 
 
 # Custom 404 Exception Handler
@@ -260,19 +320,31 @@ def update_settings(payload: Dict[str, Any], db: Session = Depends(get_db), _adm
     return config
 
 @app.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest) -> LoginResponse:
+def login(payload: LoginRequest, request: Request) -> LoginResponse:
+    key = client_ip(request)
+    retry_after = login_limiter.blocked_for(key)
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
     if not verify_admin_password(payload.password):
+        login_limiter.record(key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect password.",
         )
+    login_limiter.clear(key)
     return LoginResponse(access_token=create_access_token())
 
 
 @app.get("/qr/{token}")
 def get_qr(token: str) -> StreamingResponse:
+    if not is_valid_token(token):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found.")
     qr_buffer = generate_qr_image(token)
-    return StreamingResponse(qr_buffer, media_type="image/png")
+    return StreamingResponse(qr_buffer, media_type="image/png", headers={"Cache-Control": "private, no-store"})
 
 
 @app.post("/import")
@@ -394,10 +466,10 @@ async def import_students(
                 raise HTTPException(status_code=400, detail=f"Row {line_number}: extra_data is not valid JSON.") from exc
             if not isinstance(extra, dict):
                 raise HTTPException(status_code=400, detail=f"Row {line_number}: extra_data must be a JSON object.")
-            name = get_cell(row, ("name",))
-            roll_no = get_cell(row, ("roll_no",))
-            course = get_cell(row, ("course",))
-            contact = get_cell(row, ("contact",))
+            name = csv_unsafe(get_cell(row, ("name",)))
+            roll_no = csv_unsafe(get_cell(row, ("roll_no",)))
+            course = csv_unsafe(get_cell(row, ("course",)))
+            contact = csv_unsafe(get_cell(row, ("contact",)))
             token = get_cell(row, ("token",)).strip()
             used_value = get_cell(row, ("is_used",)).strip().casefold()
             if used_value not in {"true", "false", "1", "0", "yes", "no"}:
@@ -411,6 +483,8 @@ async def import_students(
                 raise HTTPException(status_code=400, detail=f"Row {line_number}: entry_at must be blank when is_used is false.")
             if not token:
                 raise HTTPException(status_code=400, detail=f"Row {line_number}: backup token is missing.")
+            if not is_valid_token(token):
+                raise HTTPException(status_code=400, detail=f"Row {line_number}: token may only contain letters, digits, '_' and '-' (max 20 characters).")
         else:
             # Keep every original CSV header/value in extra_data. Known app fields
             # are also mapped to the columns required by the existing QR workflow.
@@ -440,7 +514,7 @@ async def import_students(
                 entry_at = parse_datetime(entry_value, "entry_at", line_number, optional=True) if entry_value else None
             except HTTPException:
                 entry_at = None
-            if not token or len(token) > 20:
+            if not is_valid_token(token):
                 token = generate_token()
             if is_used and entry_at is None:
                 entry_at = created_at
@@ -541,7 +615,21 @@ async def import_students(
 
 
 @app.post("/register", response_model=RegisterStudentResponse, status_code=status.HTTP_201_CREATED)
-def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_db)) -> RegisterStudentResponse:
+def register_student(payload: RegisterStudentRequest, request: Request, db: Session = Depends(get_db)) -> RegisterStudentResponse:
+    retry_after = register_limiter.hit(client_ip(request))
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registrations from this address. Please wait a moment and try again.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    # Serialise the duplicate check and insert so concurrent requests cannot both
+    # claim the same unique value.
+    with _register_lock:
+        return _register_student(payload, db)
+
+
+def _register_student(payload: RegisterStudentRequest, db: Session) -> RegisterStudentResponse:
     settings = get_settings(db)
     if not settings.get("registration_open", True):
         raise HTTPException(status_code=403, detail="Registration is currently closed.")
@@ -562,8 +650,12 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
         if field.get("type") == "checkbox":
             if field.get("unique") and value is True and any((student.extra_data or {}).get(key) is True for student in existing_students):
                 raise HTTPException(status_code=400, detail=f'{label} must be unique; this value is already registered.')
+            if key in extra_data:
+                extra_data[key] = value is True
             continue
         if not text_value:
+            if key in extra_data:
+                extra_data[key] = ""
             continue
         if len(text_value) < int(field.get("min_length", 0) or 0) or len(text_value) > int(field.get("max_length", 5000) or 5000):
             raise HTTPException(status_code=400, detail=f'{label} must be between {field.get("min_length",0)} and {field.get("max_length",5000)} characters.')
@@ -581,6 +673,8 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
         if field.get("unique"):
             if any(str((student.extra_data or {}).get(key, getattr(student, key, ""))).strip().casefold() == text_value.casefold() for student in existing_students):
                 raise HTTPException(status_code=400, detail=f'{label} must be unique; this value is already registered.')
+        # Store a plain string, never a nested object or list supplied by the client.
+        extra_data[key] = text_value
 
     roll_no = ""
     course = ""
@@ -616,8 +710,14 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
 
 
 @app.post("/verify", response_model=VerifyQRResponse)
-def verify_qr(payload: VerifyQRRequest, db: Session = Depends(get_db)) -> VerifyQRResponse:
+def verify_qr(
+    payload: VerifyQRRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> VerifyQRResponse:
     token = sanitize_input(payload.token, "Token")
+    if not is_valid_token(token):
+        return VerifyQRResponse(status="INVALID", message="Invalid QR code.")
 
     try:
         result = db.execute(
@@ -730,10 +830,10 @@ def export_students(
     for student in students:
         extra = student.extra_data or {}
         row = {
-            "name": student.name,
-            "roll_no": student.roll_no,
-            "course": student.course,
-            "contact": student.contact,
+            "name": csv_safe(student.name),
+            "roll_no": csv_safe(student.roll_no),
+            "course": csv_safe(student.course),
+            "contact": csv_safe(student.contact),
             "is_used": "true" if student.is_used else "false",
             "created_at": student.created_at.isoformat() if student.created_at else "",
             "entry_at": student.entry_at.isoformat() if student.entry_at else "",
@@ -743,7 +843,7 @@ def export_students(
         }
         for key in dynamic_keys:
             value = extra.get(key, "")
-            row[key] = json.dumps(value, ensure_ascii=False, separators=(",", ":")) if isinstance(value, (dict, list)) else ("true" if value is True else "false" if value is False else "" if value is None else str(value))
+            row[key] = json.dumps(value, ensure_ascii=False, separators=(",", ":")) if isinstance(value, (dict, list)) else ("true" if value is True else "false" if value is False else "" if value is None else csv_safe(value))
         writer.writerow(row)
     content = "\ufeff" + buffer.getvalue()
     headers = {"Content-Disposition": 'attachment; filename="entry_data_backup.csv"', "Cache-Control": "no-store"}
