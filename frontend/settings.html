@@ -106,7 +106,7 @@
                             <label class="field">Organization name<input name="organization_name" maxlength="200" placeholder="e.g. ABC College"></label>
                             <div class="form-row"><label class="field">Event date<input name="event_date" type="date"></label><label class="field">Location<input name="event_location" maxlength="200" placeholder="e.g. Main Auditorium"></label></div>
                             <label class="field">Registration page description<textarea name="event_description" rows="3" maxlength="500" placeholder="Tell participants what they need to know..."></textarea><small>Shown above the registration form. Keep it short and clear.</small></label>
-                            <label class="field">Logo image path<input name="logo_url" maxlength="500" placeholder="/static/logo.png"><small>Use an image path served by this app. The preview updates when you change it.</small></label>
+                            <label class="field">Logo image path<input name="logo_url" maxlength="500" placeholder="/static/logo.png"><small>Use an image path served by this app.</small></label>
                         </div>
                     </section>
 
@@ -116,7 +116,6 @@
                             <label class="field">Color theme<select name="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option></select><small>Controls the overall interface theme.</small></label>
                             <label class="field">Primary color<div class="color-control"><input name="brand_color" type="color" value="#0b6fb8"><output id="brandColorValue">#0B6FB8</output></div><small>Used for primary actions and active navigation.</small></label>
                         </div>
-                        <div class="brand-preview" id="brandPreview"><div class="preview-brand-mark" id="previewBrandMark">E</div><div class="preview-brand-copy"><strong id="previewEventName">Your event name</strong><span id="previewOrganization">Organization name</span></div><span class="preview-button" id="previewButton">Primary button</span></div>
                     </section>
 
                     <section class="panel settings-section" id="registrationSection">
