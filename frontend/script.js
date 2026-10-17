@@ -74,13 +74,6 @@ function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 
-function safeFileName(value) {
-    return String(value)
-        .trim()
-        .replace(/[^A-Za-z0-9_-]+/g, "_")
-        .replace(/^_+|_+$/g, "") || "student";
-}
-
 function buildStudentQrUrl(student) {
     return `/qr/${encodeURIComponent(student.token)}`;
 }
@@ -514,7 +507,6 @@ function renderCustomRegistrationFields(fields, coreSettings = {}) {
         if (field.help_text) { const small = document.createElement("small"); small.textContent = field.help_text; wrapper.append(small); }
         form.insertBefore(wrapper, submit);
     };
-    const existingName = form.querySelector('input[name="name"]')?.closest("label");
     fields.forEach((field) => { if (field && field.key && field.label) makeInput(field, field.key, false); });
 }
 
@@ -555,23 +547,6 @@ function customFieldEditorRow(field = {}) {
     row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); }); updateType(); return row;
 }
 
-const CORE_FIELD_DEFAULTS = {
-  roll_no:{label:"Roll number",type:"text",required:true,unique:true,search:true,placeholder:"Enter roll number",help_text:"",min_length:1,max_length:50,pattern:"",width:"half"},
-  course:{label:"Course / category",type:"select",required:true,unique:false,search:false,placeholder:"Select course / category",help_text:"",min_length:0,max_length:120,pattern:"",width:"half"},
-  contact:{label:"Contact number",type:"tel",required:true,unique:false,search:false,placeholder:"Enter contact number",help_text:"",min_length:0,max_length:50,pattern:"",width:"full"}
-};
-function coreFieldEditorRow(key, settings = {}) {
-  const field = {...CORE_FIELD_DEFAULTS[key], ...settings}; const row=document.createElement("div"); row.className="custom-field-row core-field-row"; row.dataset.coreKey=key;
-  row.innerHTML=`<div class="custom-field-top"><span class="custom-field-number">${escapeHtml(field.label)} <small>(key: ${key})</small></span><span class="count-pill">Built-in</span></div><div class="form-grid field-editor-grid">
-  <label class="field">Field label<input data-prop="label" maxlength="80" value="${escapeHtml(field.label)}"></label>
-  <label class="field">Input type<select data-prop="type"><option value="text">Short text</option><option value="textarea">Long text</option><option value="email">Email</option><option value="tel">Phone</option><option value="number">Number</option><option value="date">Date</option><option value="url">Website URL</option><option value="select">Dropdown</option></select></label>
-  <label class="field">Layout width<select data-prop="width"><option value="full">Full width</option><option value="half">Half width</option><option value="third">One-third width</option></select></label>
-  <label class="field">Placeholder<input data-prop="placeholder" maxlength="160" value="${escapeHtml(field.placeholder || "")}"></label><label class="field">Help text<input data-prop="help_text" maxlength="250" value="${escapeHtml(field.help_text || "")}"></label>
-  <label class="field">Minimum length<input data-prop="min_length" type="number" min="0" max="500" value="${field.min_length || 0}"></label><label class="field">Maximum length<input data-prop="max_length" type="number" min="1" max="5000" value="${field.max_length || 250}"></label><label class="field">Minimum value<input data-prop="min" type="number" step="any" value="${field.min ?? ""}" placeholder="No minimum"></label><label class="field">Maximum value<input data-prop="max" type="number" step="any" value="${field.max ?? ""}" placeholder="No maximum"></label><label class="field">Validation pattern<input data-prop="pattern" maxlength="200" value="${escapeHtml(field.pattern || "")}" placeholder="Regular expression"></label></div>
-  <div class="field-rule-toggles"><label class="check-row"><input data-prop="required" type="checkbox" ${field.required ? "checked" : ""}><span><strong>Required</strong></span></label><label class="check-row"><input data-prop="unique" type="checkbox" ${field.unique ? "checked" : ""}><span><strong>Unique / no duplicates</strong></span></label><label class="check-row"><input data-prop="search" type="checkbox" ${field.search ? "checked" : ""}><span><strong>Use for student search</strong></span></label></div><p class="field-error" data-field-error role="status"></p>`;
-  row.querySelector('[data-prop="type"]').value=field.type; row.querySelector('[data-prop="width"]').value=field.width;
-  row.querySelectorAll("input,select").forEach(control=>control.addEventListener("input",()=>{if(control.dataset.prop==="search"&&control.checked){row.querySelector('[data-prop="unique"]').checked=true;document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other=>{if(other!==control)other.checked=false;});}if(control.dataset.prop==="unique"&&!control.checked)row.querySelector('[data-prop="search"]').checked=false;markSettingsDirty();})); return row;
-}
 let settingsInitialSnapshot = "";
 let settingsIsDirty = false;
 function settingsSnapshot(form, editor) {
@@ -659,7 +634,6 @@ function populateSettingsForm(form, editor, config) {
         const control = form.elements.namedItem(key);
         if (!control) return;
         if (control.type === "checkbox") control.checked = Boolean(value);
-        else if (key === "course_options") control.value = (value || []).join("\n");
         else if (control.type !== "file") control.value = value ?? "";
     });
     editor.replaceChildren();
@@ -1518,19 +1492,6 @@ function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", resolved);
 }
 
-// Persists the chosen preference, applies it immediately, and
-// keeps the Settings dropdown (if present) in sync.
-function setTheme(theme) {
-    if (theme !== "light" && theme !== "dark" && theme !== "system") return;
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-    applyTheme(theme);
-
-    const themeSelect = document.getElementById("themeSelect");
-    if (themeSelect && themeSelect.value !== theme) {
-        themeSelect.value = theme;
-    }
-}
-
 // Reads the saved preference (defaulting to "system") and applies it.
 // Returns the preference that was loaded.
 function loadTheme() {
@@ -1562,23 +1523,8 @@ function listenForSystemTheme() {
     }
 }
 
-// Wires up the Theme <select> on the Settings page, if present.
-function initThemeSelector() {
-    const themeSelect = document.getElementById("themeSelect");
-    if (!themeSelect) return;
-
-    themeSelect.value = localStorage.getItem(THEME_STORAGE_KEY) || "system";
-    themeSelect.addEventListener("change", (event) => {
-        setTheme(event.target.value);
-    });
-}
-
 // Apply the saved/system theme as early as possible (script.js runs
 // at the end of <body>, before the DOMContentLoaded/paint settles)
 // to avoid a flash of the wrong theme.
 loadTheme();
 listenForSystemTheme();
-
-document.addEventListener("DOMContentLoaded", () => {
-    initThemeSelector();
-});
