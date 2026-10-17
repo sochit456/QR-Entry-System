@@ -1058,7 +1058,7 @@ function renderStudents(students, activeFilter) {
     const tableBody = document.getElementById("studentsTableBody");
     const tableHead = document.getElementById("studentsTableHead");
     const searchValue = document.getElementById("searchRoll").value.trim().toLowerCase();
-    // Show configured fields plus every field imported from a CSV, even when it
+    // Show configured fields plus every field imported from a JSON backup, even when it
     // has never been configured in Settings. This keeps the table schema dynamic.
     const importedKeys = [...new Set(students.flatMap(student => Object.keys(student.extra_data || {})))];
     const configuredKeys = new Set(adminFields.map(field => field.key));
@@ -1082,7 +1082,7 @@ function renderStudents(students, activeFilter) {
     const colSpan = columns.length + 5;
     if (!filteredStudents.length) {
         const nothingYet = !students.length;
-        tableBody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">${nothingYet ? "No guests yet. Register the first guest or import a CSV." : "No guests match this search or filter."}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">${nothingYet ? "No guests yet. Register the first guest or import a JSON backup." : "No guests match this search or filter."}</td></tr>`;
         return;
     }
     tableBody.innerHTML = filteredStudents.map(student => {
@@ -1117,14 +1117,13 @@ function initAdminPage() {
     const message = document.getElementById("adminMessage");
     const searchRoll = document.getElementById("searchRoll");
     const refreshButton = document.getElementById("refreshStudents");
-    const downloadCsvButton = document.getElementById("downloadCsvButton");
     const tableBody = document.getElementById("studentsTableBody");
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
     let activeFilter = "all";
 
     // Build the edit form from the configured dynamic fields plus any fields
-    // that arrived through a generic CSV import.
+    // that arrived through a JSON data import.
     const editOverlay = document.createElement("div");
     editOverlay.id = "editEntryOverlay";
     editOverlay.className = "auth-overlay";
@@ -1367,81 +1366,84 @@ function initAdminPage() {
 
     refreshButton.addEventListener("click", () => loadStudents());
 
-    const importCsvButton = document.getElementById("importCsvButton");
-    const importCsvInput = document.getElementById("importCsvInput");
+    const importJsonButton = document.getElementById("importJsonButton");
+    const importJsonInput = document.getElementById("importJsonInput");
 
-    importCsvButton?.addEventListener("click", () => importCsvInput.click());
+    importJsonButton?.addEventListener("click", () => importJsonInput.click());
 
-    importCsvInput?.addEventListener("change", async () => {
-        const file = importCsvInput.files?.[0];
+    importJsonInput?.addEventListener("change", async () => {
+        const file = importJsonInput.files?.[0];
         if (!file) return;
-        importCsvInput.value = "";
+        importJsonInput.value = "";
 
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-            setMessage(message, "Please select a .csv backup file.", "error");
+        if (!file.name.toLowerCase().endsWith(".json")) {
+            setMessage(message, "Please select a .json backup file.", "error");
             return;
         }
 
         const choice = window.prompt(
-            `Import backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all existing entry records with this CSV.\nType CANCEL (or leave blank) to stop.`
+            `Import JSON backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all entry records and restore app settings.\nType CANCEL (or leave blank) to stop.`
         );
         const mode = String(choice || "").trim().toLowerCase();
         if (mode !== "add" && mode !== "replace") {
-            setMessage(message, "CSV import cancelled. No data was changed.");
+            setMessage(message, "JSON import cancelled. No data was changed.");
             return;
         }
         if (mode === "replace" && !window.confirm(
-            "This will permanently replace all current entry records with the records in this CSV. App settings will not be changed. Continue?"
+            "This will permanently replace all current entry records and restore app settings from this JSON backup. Continue?"
         )) {
-            setMessage(message, "CSV replacement cancelled. No data was changed.");
+            setMessage(message, "JSON replacement cancelled. No data was changed.");
             return;
         }
 
-        importCsvButton.disabled = true;
-        importCsvButton.textContent = "Importing…";
-        setMessage(message, mode === "replace" ? "Validating CSV and replacing all entry records…" : "Validating CSV and adding new records…");
+        importJsonButton.disabled = true;
+        importJsonButton.textContent = "Importing…";
+        setMessage(message, mode === "replace" ? "Validating JSON backup and replacing data…" : "Validating JSON backup and adding records…");
 
         const formData = new FormData();
         formData.append("file", file);
         formData.append("mode", mode);
 
         try {
-            const response = await authFetch("/import", { method: "POST", body: formData });
+            const response = await authFetch("/import-json", { method: "POST", body: formData });
             const data = await parseJsonResponse(response);
-            const summary = `${data.message || "CSV import completed."} Imported ${data.imported} record(s); skipped ${data.skipped}.`;
+            const summary = `${data.message || "Import completed."} Imported ${data.imported} record(s); skipped ${data.skipped}.`;
             setMessage(message, summary, "success");
             await loadStudents();
         } catch (error) {
-            setMessage(message, error.message || "CSV import failed. No data was changed.", "error");
+            setMessage(message, error.message || "JSON import failed. No data was changed.", "error");
         } finally {
-            importCsvButton.disabled = false;
-            importCsvButton.textContent = "Import CSV";
+            importJsonButton.disabled = false;
+            importJsonButton.textContent = "Import JSON";
         }
     });
 
-    downloadCsvButton?.addEventListener("click", async () => {
+    const downloadJsonButton = document.getElementById("downloadJsonButton");
+    downloadJsonButton?.addEventListener("click", async () => {
         try {
-            const response = await authFetch("/export");
+            downloadJsonButton.disabled = true;
+            downloadJsonButton.textContent = "Preparing…";
+            const response = await authFetch("/export-json");
             if (!response.ok) {
-                let detail = "Failed to download the CSV backup.";
-                try {
-                    const errorData = await response.json();
-                    detail = errorData.detail || detail;
-                } catch (_) {}
+                let detail = "Failed to download the JSON backup.";
+                try { const errorData = await response.json(); detail = errorData.detail || detail; } catch (_) {}
                 throw new Error(detail);
             }
-
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = blobUrl;
-            link.download = "entry_data_backup.csv";
+            link.download = "qr_entry_system_backup.json";
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+            setMessage(message, "Complete JSON backup exported, including entry records and app settings.", "success");
         } catch (error) {
-            setMessage(message, error.message, "error");
+            setMessage(message, error.message || "JSON backup failed.", "error");
+        } finally {
+            downloadJsonButton.disabled = false;
+            downloadJsonButton.textContent = "Export JSON";
         }
     });
 
