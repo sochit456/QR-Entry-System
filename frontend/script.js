@@ -1382,11 +1382,16 @@ function initAdminPage() {
         }
 
         const choice = window.prompt(
-            `Import JSON backup: ${file.name}\n\nType ADD to add records while keeping existing data.\nType REPLACE to replace all entry records and restore app settings.\nType CANCEL (or leave blank) to stop.`
+            `Import JSON backup: ${file.name}\n\n⚪ Type A to Add records while keeping existing data.\n⚪ Type R to Replace all entry records and restore app settings.\n⚪ Type C to cancel.`
         );
-        const mode = String(choice || "").trim().toLowerCase();
-        if (mode !== "add" && mode !== "replace") {
+        const selectedAction = String(choice || "").trim().toLowerCase();
+        if (selectedAction === "c" || !selectedAction) {
             setMessage(message, "JSON import cancelled. No data was changed.");
+            return;
+        }
+        const mode = selectedAction === "a" ? "add" : selectedAction === "r" ? "replace" : "";
+        if (!mode) {
+            setMessage(message, "Invalid choice. Type A to Add, R to Replace, or C to cancel. No data was changed.", "error");
             return;
         }
         if (mode === "replace" && !window.confirm(
