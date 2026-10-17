@@ -1,5 +1,3 @@
-import csv
-import io
 import os
 import re
 import threading
@@ -47,22 +45,6 @@ validate_auth_config()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 _register_lock = threading.Lock()
-
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-
-def csv_safe(value) -> str:
-    """Neutralise spreadsheet formula injection in exported CSV cells."""
-    text = "" if value is None else str(value)
-    return "'" + text if text.startswith(_FORMULA_PREFIXES) else text
-
-
-def csv_unsafe(value: str) -> str:
-    """Undo csv_safe() when restoring one of our own backups."""
-    if len(value) > 1 and value[0] == "'" and value[1] in "=+-@\t\r":
-        return value[1:]
-    return value
-
 
 def sanitize_input(value: str, field_name: str) -> str:
     cleaned = value.strip()
@@ -347,273 +329,6 @@ def get_qr(token: str) -> StreamingResponse:
     return StreamingResponse(qr_buffer, media_type="image/png", headers={"Cache-Control": "private, no-store"})
 
 
-@app.post("/import")
-async def import_students(
-    file: UploadFile = File(...),
-    mode: str = Form(...),
-    db: Session = Depends(get_db),
-    _admin: str = Depends(require_admin),
-) -> dict:
-    """Import a lossless app backup or any tabular CSV into dynamic entry data."""
-    import json
-
-    if not file.filename or Path(file.filename).suffix.lower() != ".csv":
-        raise HTTPException(status_code=400, detail="Only CSV files are supported.")
-    mode = (mode or "").strip().lower()
-    if mode not in {"add", "replace"}:
-        raise HTTPException(status_code=400, detail="Choose ADD or REPLACE for the import.")
-
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="The CSV file is empty.")
-    if len(raw) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="CSV files must be smaller than 25 MB.")
-
-    text = None
-    for encoding in ("utf-8-sig", "utf-16", "cp1252", "latin-1"):
-        try:
-            text = raw.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    if text is None:
-        raise HTTPException(status_code=400, detail="Could not decode this CSV file. Save it as UTF-8 and try again.")
-
-    try:
-        try:
-            dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\t|")
-        except csv.Error:
-            dialect = csv.excel
-        reader = csv.DictReader(io.StringIO(text, newline=""), dialect=dialect)
-        headers = reader.fieldnames or []
-        if not headers or not any(str(header or "").strip() for header in headers):
-            raise HTTPException(status_code=400, detail="The CSV must have a header row.")
-        if any(header is None or not str(header).strip() for header in headers):
-            raise HTTPException(status_code=400, detail="Every CSV column needs a non-empty header.")
-        if len({str(header).strip().casefold() for header in headers}) != len(headers):
-            raise HTTPException(status_code=400, detail="The CSV contains duplicate column headers. Rename them so every column is unique.")
-        raw_rows = []
-        for line_number, row in enumerate(reader, start=2):
-            if row is None or all(value is None or value == "" for value in row.values()):
-                continue
-            if None in row:
-                raise HTTPException(status_code=400, detail=f"Row {line_number} has more values than the header row.")
-            if any(row.get(header) is None for header in headers):
-                raise HTTPException(status_code=400, detail=f"Row {line_number} has fewer values than the header row.")
-            raw_rows.append((line_number, {str(k): str(v) if v is not None else "" for k, v in row.items()}))
-    except csv.Error as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid CSV: {exc}") from exc
-
-    if not raw_rows:
-        raise HTTPException(status_code=400, detail="The CSV contains a header but no data rows.")
-
-    # The app's own backup has these system columns and a JSON payload. The JSON
-    # payload preserves types and every dynamic key exactly; extra columns are
-    # allowed so newer exports can expose custom fields as normal CSV columns.
-    backup_columns = {"name", "roll_no", "course", "contact", "is_used", "created_at", "entry_at", "token", "extra_data"}
-    header_lookup = {header.strip().casefold(): header for header in headers}
-    is_backup = backup_columns.issubset(set(header_lookup))
-
-    def get_cell(row, aliases, default=""):
-        for alias in aliases:
-            actual = header_lookup.get(alias.casefold())
-            if actual is not None:
-                return row.get(actual, default)
-        return default
-
-    def parse_datetime(value, field, row_number, optional=False):
-        value = (value or "").strip()
-        if not value and optional:
-            return None
-        if not value:
-            raise HTTPException(status_code=400, detail=f"Row {row_number}: {field} is blank.")
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            for fmt in ("%d/%m/%Y, %I:%M:%S %p", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
-                try:
-                    return datetime.strptime(value, fmt)
-                except ValueError:
-                    pass
-        raise HTTPException(status_code=400, detail=f"Row {row_number}: invalid {field} value '{value}'.")
-
-    settings = get_settings(db)
-    configured_fields = settings.get("custom_fields", [])
-    configured_keys = {str(field.get("key", "")).casefold(): str(field.get("key", "")) for field in configured_fields if field.get("key")}
-    unique_keys = [str(field.get("key")) for field in configured_fields if field.get("unique") and field.get("key")]
-    reserved_aliases = {
-        "name": ("name", "full name", "guest name", "participant name", "entry name"),
-        "roll_no": ("roll_no", "roll no", "roll number", "rollnumber", "registration id", "registration number", "id"),
-        "course": ("course", "category", "group", "department", "type"),
-        "contact": ("contact", "contact number", "phone", "phone number", "mobile", "email", "email address"),
-        "is_used": ("is_used", "entered", "checked in", "checked_in", "attendance status"),
-        "created_at": ("created_at", "registered at", "registration date", "created"),
-        "entry_at": ("entry_at", "entered at", "check-in time", "checkin time"),
-        "token": ("token", "qr token", "qr_code_token"),
-    }
-
-    parsed = []
-    seen_tokens = set()
-    seen_row_fingerprints = set()
-    duplicate_rows = 0
-    seen_unique_values = {key: set() for key in unique_keys}
-    for line_number, row in raw_rows:
-        if is_backup:
-            extra_raw = get_cell(row, ("extra_data",), "{}")
-            try:
-                extra = json.loads(extra_raw or "{}")
-            except (ValueError, TypeError) as exc:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: extra_data is not valid JSON.") from exc
-            if not isinstance(extra, dict):
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: extra_data must be a JSON object.")
-            name = csv_unsafe(get_cell(row, ("name",)))
-            roll_no = csv_unsafe(get_cell(row, ("roll_no",)))
-            course = csv_unsafe(get_cell(row, ("course",)))
-            contact = csv_unsafe(get_cell(row, ("contact",)))
-            token = get_cell(row, ("token",)).strip()
-            used_value = get_cell(row, ("is_used",)).strip().casefold()
-            if used_value not in {"true", "false", "1", "0", "yes", "no"}:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: invalid is_used value.")
-            is_used = used_value in {"true", "1", "yes"}
-            created_at = parse_datetime(get_cell(row, ("created_at",)), "created_at", line_number)
-            entry_at = parse_datetime(get_cell(row, ("entry_at",)), "entry_at", line_number, optional=True)
-            if is_used and entry_at is None:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: entered records must have entry_at.")
-            if not is_used and entry_at is not None:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: entry_at must be blank when is_used is false.")
-            if not token:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: backup token is missing.")
-            if not is_valid_token(token):
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: token may only contain letters, digits, '_' and '-' (max 20 characters).")
-        else:
-            # Keep every original CSV header/value in extra_data. Known app fields
-            # are also mapped to the columns required by the existing QR workflow.
-            extra = {}
-            for header in headers:
-                key = configured_keys.get(header.strip().casefold(), header)
-                extra[key] = row.get(header, "")
-            name = get_cell(row, reserved_aliases["name"])
-            if not name and headers:
-                name = row.get(headers[0], "")
-            roll_no = get_cell(row, reserved_aliases["roll_no"])
-            course = get_cell(row, reserved_aliases["course"])
-            contact = get_cell(row, reserved_aliases["contact"])
-            token = get_cell(row, reserved_aliases["token"]).strip()
-            used_value = get_cell(row, reserved_aliases["is_used"]).strip().casefold()
-            is_used = used_value in {"true", "1", "yes", "used", "entered", "checked in"}
-            created_value = get_cell(row, reserved_aliases["created_at"])
-            entry_value = get_cell(row, reserved_aliases["entry_at"])
-            # In a generic CSV, date-like columns are user data first. If they do
-            # not match a supported timestamp format, preserve them in extra_data
-            # and use safe system timestamps rather than rejecting the whole file.
-            try:
-                created_at = parse_datetime(created_value, "created_at", line_number) if created_value else datetime.now()
-            except HTTPException:
-                created_at = datetime.now()
-            try:
-                entry_at = parse_datetime(entry_value, "entry_at", line_number, optional=True) if entry_value else None
-            except HTTPException:
-                entry_at = None
-            if not is_valid_token(token):
-                token = generate_token()
-            if is_used and entry_at is None:
-                entry_at = created_at
-
-        if len(token) > 20:
-            raise HTTPException(status_code=400, detail=f"Row {line_number}: token must be 20 characters or fewer.")
-        # Exact duplicate detection includes every imported dynamic field. It does
-        # not assume that roll numbers or student-specific columns exist. Check it
-        # before token uniqueness so a repeated identical CSV row is simply skipped.
-        fingerprint_source = json.dumps(extra, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
-        fingerprint = fingerprint_source.casefold()
-        if fingerprint in seen_row_fingerprints:
-            duplicate_rows += 1
-            continue
-        seen_row_fingerprints.add(fingerprint)
-        token_key = token.casefold()
-        if token_key in seen_tokens:
-            raise HTTPException(status_code=400, detail=f"Row {line_number}: duplicate QR token in different CSV records. No data was changed.")
-        seen_tokens.add(token_key)
-
-        for unique_key in unique_keys:
-            value = extra.get(unique_key)
-            if value is None or str(value).strip() == "":
-                continue
-            unique_value = str(value).strip().casefold()
-            if unique_value in seen_unique_values[unique_key]:
-                raise HTTPException(status_code=400, detail=f"Row {line_number}: duplicate value for unique field '{unique_key}'. No data was changed.")
-            seen_unique_values[unique_key].add(unique_value)
-
-        parsed.append(Student(
-            name=str(name or ""), roll_no=str(roll_no or ""), course=str(course or ""), contact=str(contact or ""),
-            token=token, is_used=is_used, created_at=created_at, entry_at=entry_at, extra_data=extra,
-        ))
-
-    if not parsed:
-        raise HTTPException(status_code=400, detail="No unique data rows were found in this CSV.")
-
-    existing = db.execute(select(Student)).scalars().all()
-    existing_tokens = {str(student.token or "").strip().casefold() for student in existing}
-    existing_unique_values = {key: set() for key in unique_keys}
-    for student in existing:
-        data = dict(student.extra_data or {})
-        data.update({"name": student.name, "roll_no": student.roll_no, "course": student.course, "contact": student.contact})
-        for key in unique_keys:
-            value = data.get(key)
-            if value is not None and str(value).strip():
-                existing_unique_values[key].add(str(value).strip().casefold())
-
-    if mode == "add":
-        rows_to_add = []
-        skipped = duplicate_rows
-        existing_fingerprints = {
-            json.dumps(student.extra_data or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).casefold()
-            for student in existing
-        }
-        seen_add_fingerprints = set()
-        for student in parsed:
-            fp = json.dumps(student.extra_data or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).casefold()
-            conflict = fp in existing_fingerprints or fp in seen_add_fingerprints or student.token.strip().casefold() in existing_tokens
-            for key in unique_keys:
-                value = (student.extra_data or {}).get(key)
-                if value is not None and str(value).strip() and str(value).strip().casefold() in existing_unique_values[key]:
-                    conflict = True
-            if conflict:
-                skipped += 1
-                continue
-            rows_to_add.append(student)
-            seen_add_fingerprints.add(fp)
-            existing_tokens.add(student.token.strip().casefold())
-            for key in unique_keys:
-                value = (student.extra_data or {}).get(key)
-                if value is not None and str(value).strip():
-                    existing_unique_values[key].add(str(value).strip().casefold())
-        if not rows_to_add:
-            return {"mode": mode, "imported": 0, "skipped": skipped, "message": "No new records to add; all rows were duplicates or conflicted with unique fields."}
-    else:
-        rows_to_add = parsed
-        skipped = len(raw_rows) - len(parsed)
-
-    try:
-        if mode == "replace":
-            db.query(Student).delete(synchronize_session=False)
-            # Detach stale ORM identities before replacement rows reuse primary keys.
-            db.expunge_all()
-        db.add_all(rows_to_add)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Import failed; no data was changed. Check that the CSV rows and unique fields do not conflict.") from exc
-
-    return {
-        "mode": mode,
-        "imported": len(rows_to_add),
-        "skipped": skipped,
-        "format": "app-backup" if is_backup else "generic-csv",
-        "message": ("Records restored from backup." if is_backup else "Records replaced from CSV.") if mode == "replace" else "Records added from CSV.",
-    }
-
-
 @app.post("/register", response_model=RegisterStudentResponse, status_code=status.HTTP_201_CREATED)
 def register_student(payload: RegisterStudentRequest, request: Request, db: Session = Depends(get_db)) -> RegisterStudentResponse:
     retry_after = register_limiter.hit(client_ip(request))
@@ -811,47 +526,147 @@ def get_students(
     return db.execute(select(Student).order_by(Student.created_at.desc())).scalars().all()
 
 
-@app.get("/export")
-def export_students(
+@app.get("/export-json")
+def export_json_backup(
     db: Session = Depends(get_db),
     _admin: str = Depends(require_admin),
 ) -> StreamingResponse:
-    """Export a round-trip-safe backup with readable dynamic CSV columns."""
+    """Export all application data in a versioned JSON backup."""
+    students = db.execute(select(Student).order_by(Student.id.asc())).scalars().all()
+    settings_row = db.get(AppSettings, 1)
+    backup = {
+        "format": "qr-entry-system-backup",
+        "version": 1,
+        "exported_at": datetime.now().isoformat(),
+        "data": {
+            "students": [
+                {
+                    "id": student.id,
+                    "name": student.name,
+                    "roll_no": student.roll_no,
+                    "course": student.course,
+                    "contact": student.contact,
+                    "token": student.token,
+                    "is_used": student.is_used,
+                    "created_at": student.created_at.isoformat() if student.created_at else None,
+                    "entry_at": student.entry_at.isoformat() if student.entry_at else None,
+                    "extra_data": student.extra_data or {},
+                }
+                for student in students
+            ],
+            "app_settings": settings_row.config if settings_row else get_settings(db),
+        },
+    }
+    content = __import__("json").dumps(backup, ensure_ascii=False, indent=2, default=str)
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="qr_entry_system_backup.json"', "Cache-Control": "no-store"},
+    )
+
+
+@app.post("/import-json")
+async def import_json_backup(
+    file: UploadFile = File(...),
+    mode: str = Form(...),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+) -> dict:
+    """Validate and import a complete JSON backup. Replace is transactional."""
     import json
+    from sqlalchemy import delete
 
-    students = db.execute(select(Student).order_by(Student.created_at.asc(), Student.id.asc())).scalars().all()
-    base_columns = ["name", "roll_no", "course", "contact", "is_used", "created_at", "entry_at", "token", "extra_data"]
-    reserved_columns = {column.casefold() for column in base_columns}
-    dynamic_keys = sorted({str(key) for student in students for key in (student.extra_data or {}).keys() if str(key).casefold() not in reserved_columns})
-    columns = base_columns + dynamic_keys
-    buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=columns, lineterminator="\r\n", extrasaction="raise")
-    writer.writeheader()
-    for student in students:
-        extra = student.extra_data or {}
-        row = {
-            "name": csv_safe(student.name),
-            "roll_no": csv_safe(student.roll_no),
-            "course": csv_safe(student.course),
-            "contact": csv_safe(student.contact),
-            "is_used": "true" if student.is_used else "false",
-            "created_at": student.created_at.isoformat() if student.created_at else "",
-            "entry_at": student.entry_at.isoformat() if student.entry_at else "",
-            "token": student.token,
-            # JSON keeps arbitrary field names and value types lossless on restore.
-            "extra_data": json.dumps(extra, ensure_ascii=False, separators=(",", ":"), default=str),
-        }
-        for key in dynamic_keys:
-            value = extra.get(key, "")
-            row[key] = json.dumps(value, ensure_ascii=False, separators=(",", ":")) if isinstance(value, (dict, list)) else ("true" if value is True else "false" if value is False else "" if value is None else csv_safe(value))
-        writer.writerow(row)
-    content = "\ufeff" + buffer.getvalue()
-    headers = {"Content-Disposition": 'attachment; filename="entry_data_backup.csv"', "Cache-Control": "no-store"}
-    return StreamingResponse(iter([content]), media_type="text/csv; charset=utf-8", headers=headers)
+    if not file.filename or Path(file.filename).suffix.lower() != ".json":
+        raise HTTPException(status_code=400, detail="Only JSON files are supported.")
+    mode = (mode or "").strip().lower()
+    if mode not in {"add", "replace"}:
+        raise HTTPException(status_code=400, detail="Choose ADD or REPLACE for the import.")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="The JSON file is empty.")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="JSON files must be smaller than 25 MB.")
+    try:
+        backup = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="The file is not valid UTF-8 JSON.") from exc
+    if not isinstance(backup, dict) or backup.get("format") != "qr-entry-system-backup" or backup.get("version") != 1:
+        raise HTTPException(status_code=400, detail="Unsupported backup format or version.")
+    data = backup.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("students"), list):
+        raise HTTPException(status_code=400, detail="Backup data must contain a students array.")
+    imported_students = data["students"]
+    settings_config = data.get("app_settings")
+    if settings_config is not None and not isinstance(settings_config, dict):
+        raise HTTPException(status_code=400, detail="app_settings must be a JSON object.")
+
+    parsed = []
+    seen_tokens = set()
+    for index, item in enumerate(imported_students, start=1):
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail=f"Student record {index} must be an object.")
+        for field in ("name", "roll_no", "course", "contact", "token"):
+            if not isinstance(item.get(field), str) or not item[field].strip():
+                raise HTTPException(status_code=400, detail=f"Student record {index}: {field} must be a non-empty string.")
+        token = item["token"].strip()
+        if not is_valid_token(token):
+            raise HTTPException(status_code=400, detail=f"Student record {index}: invalid token.")
+        if token in seen_tokens:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: duplicate token in backup.")
+        seen_tokens.add(token)
+        extra = item.get("extra_data", {})
+        if not isinstance(extra, dict):
+            raise HTTPException(status_code=400, detail=f"Student record {index}: extra_data must be an object.")
+        try:
+            created_at = datetime.fromisoformat(item["created_at"]) if item.get("created_at") else datetime.now()
+            entry_at = datetime.fromisoformat(item["entry_at"]) if item.get("entry_at") else None
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: invalid date/time.") from exc
+        is_used = item.get("is_used", False)
+        if not isinstance(is_used, bool):
+            raise HTTPException(status_code=400, detail=f"Student record {index}: is_used must be true or false.")
+        if is_used and entry_at is None:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: entered records need entry_at.")
+        if not is_used and entry_at is not None:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: entry_at must be null when is_used is false.")
+        parsed.append({"id": item.get("id"), "name": item["name"].strip(), "roll_no": item["roll_no"].strip(), "course": item["course"].strip(), "contact": item["contact"].strip(), "token": token, "is_used": is_used, "created_at": created_at, "entry_at": entry_at, "extra_data": extra})
+
+    try:
+        if mode == "replace":
+            db.execute(delete(Student))
+            for item in parsed:
+                db.add(Student(**item))
+            if settings_config is not None:
+                row = db.get(AppSettings, 1)
+                if row is None:
+                    db.add(AppSettings(id=1, config=settings_config))
+                else:
+                    row.config = settings_config
+            db.commit()
+            return {"message": "JSON backup restored successfully.", "imported": len(parsed), "skipped": 0, "settings_imported": settings_config is not None}
+
+        existing_tokens = set(db.execute(select(Student.token)).scalars().all())
+        imported = skipped = 0
+        for item in parsed:
+            if item["token"] in existing_tokens:
+                skipped += 1
+                continue
+            # IDs are database-local; let the database allocate IDs when adding.
+            item.pop("id", None)
+            db.add(Student(**item))
+            existing_tokens.add(item["token"])
+            imported += 1
+        db.commit()
+        return {"message": "JSON data imported successfully. Existing app settings were kept in ADD mode.", "imported": imported, "skipped": skipped, "settings_imported": False}
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Import conflicts with existing database records. No changes were saved.") from exc
+    except Exception:
+        db.rollback()
+        raise
 
 
-
-@app.put("/student/{student_id}", response_model=StudentResponse)
+@app.put("/student/{student_id}")
 def edit_student(
     student_id: int,
     payload: Dict[str, Any],
