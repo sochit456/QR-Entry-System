@@ -9,7 +9,7 @@ A **FastAPI + PostgreSQL/SQLite** web application for managing student registrat
 - **Live Gate Scanner** — Camera-based QR scanner (`html5-qrcode`) with camera switching, sound, and vibration feedback for VALID / USED / INVALID scans.
 - **One-Time Entry Verification** — Each QR code can only be used once; duplicate scans are automatically rejected.
 - **Admin Dashboard** — View live stats (total, used, remaining), search by roll number, filter by status, manually mark/reset entries, and delete records.
-- **CSV Import & Export** — Download the full student list as CSV or bulk-import students from a CSV file.
+- **JSON Backup & Restore** — Export all student records and app settings to a JSON backup, then import it in ADD or REPLACE mode.
 - **Password-Protected Access** — Registration, Scanner, Admin, and Settings pages are locked behind a shared admin password (session-based).
 - **Theme Support** — Light, dark, and system-based themes, adjustable from the Settings page.
 - **Custom 404 Page** — Styled fallback page for unmatched routes.
@@ -80,8 +80,8 @@ All pages except the 404 page require the admin password before content is shown
 | `POST` | `/login` | Authenticate with the admin password and receive a JWT |
 | `GET` | `/students` | List all registered students (admin, requires JWT) |
 | `DELETE` | `/student/{student_id}` | Delete a student record (admin, requires JWT) |
-| `GET` | `/export` | Export all students as a CSV file (admin, requires JWT) |
-| `POST` | `/import` | Bulk import students from a CSV file (admin, requires JWT) |
+| `GET` | `/export-json` | Export all student records and app settings as a JSON backup (admin, requires JWT) |
+| `POST` | `/import-json` | Import a validated JSON backup in ADD or REPLACE mode (admin, requires JWT) |
 | `GET` | `/health` | Health check endpoint used for uptime monitoring |
 
 ## 📝 Notes
@@ -171,7 +171,7 @@ Settings include:
 4. Use **Add custom field** to collect extra participant information. Field keys should start with a lowercase letter and use only lowercase letters, numbers, and underscores (for example, `department`). Dropdown options are comma-separated.
 5. Click **Save settings**. New registrations will use the updated form and settings.
 
-Settings are persisted in the `app_settings` database table. Extra registration values are stored as JSON in each student's `extra_data` field and included in CSV exports. Existing student fields and records are retained. The backend enforces the registration-open switch, valid course/category choices, and required custom fields; the UI alone is not relied on for these checks.
+Settings are persisted in the `app_settings` database table. Extra registration values are stored as JSON in each student's `extra_data` field and included in JSON backups. Existing student fields and records are retained. The backend enforces the registration-open switch, valid course/category choices, and required custom fields; the UI alone is not relied on for these checks.
 
 The settings API is `GET /api/settings` and `PUT /api/settings` (admin-authenticated). `GET /public-config` exposes only the event settings needed by public-facing pages.
 
@@ -203,3 +203,7 @@ The backend validates field values during registration as well as the browser, s
 - Registration values for user-defined fields are stored in `students.extra_data`. Legacy `roll_no`, `course`, and `contact` database columns remain for backward compatibility with existing databases; they are no longer shown as built-in form fields.
 - Back up the database before updating. Test the new field configuration and duplicate rules against a copy of existing registration data before using it at a live event.
 - The Settings categories use a single-open accordion: opening one category closes the others.
+
+## JSON Backups
+
+Use **Export JSON** on the admin dashboard to download all student records and application settings. Use **Import JSON** to restore a backup. ADD mode preserves current settings and skips existing QR tokens; REPLACE mode replaces entry records and restores the settings stored in the backup. Back up current data before using REPLACE.
