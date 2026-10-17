@@ -572,7 +572,7 @@ async def import_json_backup(
     db: Session = Depends(get_db),
     _admin: str = Depends(require_admin),
 ) -> dict:
-    """Validate and import a complete JSON backup. Replace is transactional."""
+    """Import JSON backups while preserving arbitrary dynamic fields."""
     import json
     from sqlalchemy import delete
 
@@ -590,46 +590,109 @@ async def import_json_backup(
         backup = json.loads(raw.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail="The file is not valid UTF-8 JSON.") from exc
-    if not isinstance(backup, dict) or backup.get("format") != "qr-entry-system-backup" or backup.get("version") != 1:
-        raise HTTPException(status_code=400, detail="Unsupported backup format or version.")
-    data = backup.get("data")
-    if not isinstance(data, dict) or not isinstance(data.get("students"), list):
-        raise HTTPException(status_code=400, detail="Backup data must contain a students array.")
-    imported_students = data["students"]
-    settings_config = data.get("app_settings")
+
+    # Accept this application's versioned export, a simple {"students": [...]} file,
+    # or a bare array of records. The versioned format remains the export format.
+    settings_config = None
+    if isinstance(backup, dict) and backup.get("format") == "qr-entry-system-backup":
+        if backup.get("version") != 1:
+            raise HTTPException(status_code=400, detail="Unsupported backup version.")
+        data = backup.get("data")
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Backup data must be a JSON object.")
+        imported_students = data.get("students")
+        settings_config = data.get("app_settings")
+    elif isinstance(backup, dict):
+        imported_students = backup.get("students", backup.get("data"))
+        if isinstance(backup.get("app_settings"), dict):
+            settings_config = backup["app_settings"]
+    elif isinstance(backup, list):
+        imported_students = backup
+    else:
+        imported_students = None
+
+    if not isinstance(imported_students, list):
+        raise HTTPException(status_code=400, detail="JSON must contain a students array or be an array of student records.")
     if settings_config is not None and not isinstance(settings_config, dict):
         raise HTTPException(status_code=400, detail="app_settings must be a JSON object.")
 
     parsed = []
     seen_tokens = set()
+    reserved = {"id", "name", "roll_no", "course", "contact", "token", "is_used", "created_at", "entry_at", "extra_data"}
+
+    def as_text(value: Any, default: str = "") -> str:
+        if value is None:
+            return default
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value).strip()
+
     for index, item in enumerate(imported_students, start=1):
         if not isinstance(item, dict):
             raise HTTPException(status_code=400, detail=f"Student record {index} must be an object.")
-        for field in ("name", "roll_no", "course", "contact", "token"):
-            if not isinstance(item.get(field), str) or not item[field].strip():
-                raise HTTPException(status_code=400, detail=f"Student record {index}: {field} must be a non-empty string.")
-        token = item["token"].strip()
+
+        # Name is the only required built-in field. roll_no/course/contact are
+        # legacy database columns and may intentionally be empty when custom fields
+        # are used. Any additional keys are preserved in extra_data.
+        name = as_text(item.get("name"))
+        if not name:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: name must be a non-empty string.")
+        if len(name) > 120:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: name must be 120 characters or fewer.")
+        roll_no = as_text(item.get("roll_no"))[:50]
+        course = as_text(item.get("course"))[:120]
+        contact = as_text(item.get("contact"))[:50]
+
+        token = as_text(item.get("token"))
+        if not token:
+            # Allows importing ordinary dynamic-field records that don't have a QR
+            # token yet. Existing exported tokens are preserved exactly.
+            token = generate_token()
+            while token in seen_tokens or db.execute(select(Student).where(Student.token == token)).scalar_one_or_none():
+                token = generate_token()
         if not is_valid_token(token):
             raise HTTPException(status_code=400, detail=f"Student record {index}: invalid token.")
         if token in seen_tokens:
-            raise HTTPException(status_code=400, detail=f"Student record {index}: duplicate token in backup.")
+            raise HTTPException(status_code=400, detail=f"Student record {index}: duplicate token in JSON file.")
         seen_tokens.add(token)
+
         extra = item.get("extra_data", {})
+        if extra is None:
+            extra = {}
         if not isinstance(extra, dict):
             raise HTTPException(status_code=400, detail=f"Student record {index}: extra_data must be an object.")
+        extra = dict(extra)
+        # Also accept dynamic fields stored directly on the record, without losing
+        # unknown keys or nested JSON values. Explicit extra_data takes precedence.
+        for key, value in item.items():
+            if key not in reserved and isinstance(key, str):
+                extra.setdefault(key, value)
+
         try:
-            created_at = datetime.fromisoformat(item["created_at"]) if item.get("created_at") else datetime.now()
-            entry_at = datetime.fromisoformat(item["entry_at"]) if item.get("entry_at") else None
+            created_at = datetime.fromisoformat(as_text(item.get("created_at"))) if item.get("created_at") else datetime.now()
+            entry_at = datetime.fromisoformat(as_text(item.get("entry_at"))) if item.get("entry_at") else None
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=f"Student record {index}: invalid date/time.") from exc
-        is_used = item.get("is_used", False)
-        if not isinstance(is_used, bool):
-            raise HTTPException(status_code=400, detail=f"Student record {index}: is_used must be true or false.")
+        is_used_value = item.get("is_used", entry_at is not None)
+        if isinstance(is_used_value, str):
+            is_used = is_used_value.strip().lower() in {"true", "1", "yes", "used"}
+        elif isinstance(is_used_value, (int, bool)):
+            is_used = bool(is_used_value)
+        else:
+            raise HTTPException(status_code=400, detail=f"Student record {index}: is_used must be a boolean.")
         if is_used and entry_at is None:
-            raise HTTPException(status_code=400, detail=f"Student record {index}: entered records need entry_at.")
-        if not is_used and entry_at is not None:
-            raise HTTPException(status_code=400, detail=f"Student record {index}: entry_at must be null when is_used is false.")
-        parsed.append({"id": item.get("id"), "name": item["name"].strip(), "roll_no": item["roll_no"].strip(), "course": item["course"].strip(), "contact": item["contact"].strip(), "token": token, "is_used": is_used, "created_at": created_at, "entry_at": entry_at, "extra_data": extra})
+            entry_at = created_at
+        if not is_used:
+            entry_at = None
+
+        parsed.append({
+            "id": item.get("id"), "name": name, "roll_no": roll_no,
+            "course": course, "contact": contact, "token": token,
+            "is_used": is_used, "created_at": created_at,
+            "entry_at": entry_at, "extra_data": extra,
+        })
 
     try:
         if mode == "replace":
@@ -651,13 +714,13 @@ async def import_json_backup(
             if item["token"] in existing_tokens:
                 skipped += 1
                 continue
-            # IDs are database-local; let the database allocate IDs when adding.
+            # Database IDs are local; always allocate a fresh ID in ADD mode.
             item.pop("id", None)
             db.add(Student(**item))
             existing_tokens.add(item["token"])
             imported += 1
         db.commit()
-        return {"message": "JSON data imported successfully. Existing app settings were kept in ADD mode.", "imported": imported, "skipped": skipped, "settings_imported": False}
+        return {"message": "JSON data imported successfully. Dynamic fields were preserved; current app settings were kept in ADD mode.", "imported": imported, "skipped": skipped, "settings_imported": False}
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail="Import conflicts with existing database records. No changes were saved.") from exc
