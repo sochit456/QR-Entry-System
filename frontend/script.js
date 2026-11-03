@@ -543,7 +543,7 @@ function customFieldEditorRow(field = {}) {
     const capitalizeKey = () => { const v = keyInputEl.value.replace(/[^A-Za-z0-9_]/g, ""); const fixed = v.charAt(0).toUpperCase() + v.slice(1); if (fixed !== keyInputEl.value) keyInputEl.value = fixed; };
     keyInputEl.addEventListener("input", capitalizeKey);
     capitalizeKey();
-    row.querySelectorAll("input, select").forEach(control => control.addEventListener("input", () => { row.classList.remove("has-error"); if (control.dataset.prop === "search" && control.checked) { document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other => { if (other !== control) other.checked = false; }); document.querySelectorAll('#coreFieldSettingsEditor [data-prop="search"]').forEach(other => other.checked = false); row.querySelector('[data-prop="unique"]').checked = true; } if (control.dataset.prop === "unique" && !control.checked) row.querySelector('[data-prop="search"]').checked = false; markSettingsDirty(); updateSettingsPreview(); }));
+    row.querySelectorAll("input, select").forEach(control => control.addEventListener("input", () => { row.classList.remove("has-error"); if (control.dataset.prop === "search" && control.checked) { document.querySelectorAll('#customFieldsEditor [data-prop="search"]').forEach(other => { if (other !== control) other.checked = false; }); row.querySelector('[data-prop="unique"]').checked = true; } if (control.dataset.prop === "unique" && !control.checked) row.querySelector('[data-prop="search"]').checked = false; markSettingsDirty(); updateSettingsPreview(); }));
     row.querySelector("[data-remove-field]").addEventListener("click", () => { row.remove(); updateCustomFieldCount(); markSettingsDirty(); updateSettingsPreview(); }); updateType(); return row;
 }
 
@@ -589,29 +589,12 @@ function updateSettingsPreview() {
     if (!form || !editor) return;
     const value = (key) => form.elements.namedItem(key).value.trim();
     const eventName = value("event_name") || "Your event name";
-    const organization = value("organization_name") || "Organization name";
     const date = value("event_date");
     const location = value("event_location");
-    const name = document.getElementById("previewEventName");
-    const org = document.getElementById("previewOrganization");
-    const mark = document.getElementById("previewBrandMark");
     const color = value("brand_color") || "#0b6fb8";
     applyTheme(value("theme") || "system");
     applyBrandColor(color);
     const colorValue = document.getElementById("brandColorValue");
-    if (name) name.textContent = eventName;
-    if (org) org.textContent = organization;
-    if (mark) {
-        mark.textContent = eventName.slice(0, 1).toUpperCase();
-        const logo = value("logo_url");
-        mark.innerHTML = "";
-        if (logo) {
-            const img = document.createElement("img");
-            img.src = logo; img.alt = "";
-            img.onerror = () => { mark.textContent = eventName.slice(0, 1).toUpperCase(); };
-            mark.append(img);
-        } else mark.textContent = eventName.slice(0, 1).toUpperCase();
-    }
     if (colorValue) colorValue.textContent = color.toUpperCase();
     const meta = document.getElementById("summaryEventMeta");
     if (meta) meta.textContent = [date, location].filter(Boolean).join(", ") || "Set a date and location to show them here.";
@@ -625,8 +608,6 @@ function updateSettingsPreview() {
     if (sound) sound.textContent = form.elements.namedItem("scanner_sound").checked ? "On" : "Off";
     const vibration = document.getElementById("summaryVibration");
     if (vibration) vibration.textContent = form.elements.namedItem("scanner_vibration").checked ? "On" : "Off";
-    const preview = document.getElementById("brandPreview");
-    if (preview) preview.style.setProperty("--preview-brand", color);
 }
 
 function populateSettingsForm(form, editor, config) {
@@ -1470,7 +1451,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Theme (Light / Dark / System)
 // ======================================================
 // Additive feature only — does not alter any code above.
-// Reads/writes localStorage key "theme" with possible values
+// Reads localStorage key "theme" (nothing in the app writes it any more) with possible values
 // "light", "dark", "system". Applies the resolved theme via
 // the data-theme attribute on <html>, which style.css uses to
 // override the existing CSS variables (--bg, --card-bg, etc.).
