@@ -3,7 +3,7 @@
 > Technical knowledge base for humans and AI coding agents.
 > **Basis:** static reading of every source file in the project archive (snapshot dated 2026-10-17).
 > **Not verified by execution:** the app was **not run** (dependencies were not installed and there was no network). Anything about runtime behaviour is derived from reading code and is labelled **[UNVERIFIED]** where it matters.
-> **Line numbers** (`L123`) are approximate, valid for this snapshot. Always `grep -n "<name>"` to confirm before editing.
+> **Line numbers** (`L123`) are approximate, valid for this snapshot. Always `grep -n "<name>"` to confirm before editing. (After the 2026-11-03 `.env` fix, `backend/main.py` lost 2 lines near the top: its `L`-references below ~L41 are about 2 lower than listed.)
 
 ---
 
@@ -36,7 +36,7 @@ Follow this protocol on every task in this repository.
 
 ## 2. TECHNOLOGY STACK & DEPENDENCIES
 
-**Backend:** Python, FastAPI, Uvicorn, SQLAlchemy 2.x ORM, PostgreSQL via `psycopg2`, Pydantic (via FastAPI), `python-jose` (JWT HS256), `qrcode[pil]` + Pillow (QR PNG), `python-dotenv`, `python-multipart` (file upload form).
+**Backend:** Python, FastAPI, Uvicorn, SQLAlchemy 2.x ORM, PostgreSQL via `psycopg2`, Pydantic (via FastAPI), `python-jose` (JWT HS256), `qrcode[pil]` + Pillow (QR PNG), `python-dotenv` (called from `backend/__init__.py`), `python-multipart` (file upload form).
 **Frontend:** plain HTML + CSS + vanilla JavaScript (no framework, no bundler, no npm). One shared script (`script.js`) with page switching via `<body data-page="…">`.
 **External runtime resources (CDN):**
 - `https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js` (scanner page only; `crossorigin="anonymous"`, no SRI hash).
@@ -52,7 +52,7 @@ Follow this protocol on every task in this repository.
 | qrcode[pil] | >=7.4.2,<8.0.0 | QR generation (`utils.py`) |
 | Pillow | >=10.3.0 | image backend for qrcode |
 | psycopg2-binary | >=2.9.9,<3.0.0 | PostgreSQL driver (forced in `database.py`) |
-| python-dotenv | >=1.0.0,<2.0.0 | `load_dotenv()` (`main.py`) |
+| python-dotenv | >=1.0.0,<2.0.0 | `load_dotenv()` (`backend/__init__.py`) |
 | python-multipart | >=0.0.20,<1.0.0 | `File`/`Form` in `/import-json` |
 | python-jose[cryptography] | >=3.4.0,<4.0.0 | JWT (`auth.py`) |
 
@@ -69,7 +69,7 @@ QR-ENTRY-SYSTEM/
 ├── requirements.txt
 ├── .gitignore                # .env, __pycache__, venvs, *.db, *.sqlite3, build artefacts, OS files
 ├── backend/
-│   ├── __init__.py           # docstring only
+│   ├── __init__.py           # docstring + load_dotenv() (runs before any backend submodule is imported)
 │   ├── main.py               # app, routes, settings logic, validation, import/export, schema patching
 │   ├── auth.py               # admin password check, JWT, bearer dependency, rate limiter, client IP
 │   ├── database.py           # engine, SessionLocal, Base, get_db
@@ -92,7 +92,8 @@ QR-ENTRY-SYSTEM/
 
 | File | Responsibility | Key dependents |
 |---|---|---|
-| `backend/main.py` | Creates `FastAPI` app; on import runs `load_dotenv()`, `validate_auth_config()`, `Base.metadata.create_all`, `ensure_database_schema()`; defines settings defaults/validation, all routes, security middleware, CORS, 404 handler | imports auth, database, models, schemas, utils |
+| `backend/main.py` | Creates `FastAPI` app; on import runs `validate_auth_config()` (`.env` was already loaded by `backend/__init__.py`), `Base.metadata.create_all`, `ensure_database_schema()`; defines settings defaults/validation, all routes, security middleware, CORS, 404 handler | imports auth, database, models, schemas, utils |
+| `backend/__init__.py` | Loads `.env` via `load_dotenv()` (no override of existing env vars) before `database.py`/`auth.py`/`main.py` import | every `backend.*` import |
 | `backend/auth.py` | `ADMIN_PASSWORD` compare, JWT create/verify, `require_admin` dependency, `AttemptLimiter`, `client_ip`, `login_limiter`, `register_limiter` | used by `main.py` |
 | `backend/database.py` | Reads `DATABASE_URL` **at import**, rewrites to `postgresql+psycopg2://`, builds engine (`pool_pre_ping=True`), `SessionLocal`, `Base`, `get_db()` | `models.py`, `main.py` |
 | `backend/models.py` | ORM tables `students`, `app_settings` | `main.py` |
@@ -149,13 +150,13 @@ Search rules: if any custom fields exist, at least one must be `unique`; at most
 | `DATABASE_URL` | **Yes** | `database.py` at import | Missing → `RuntimeError`. `postgres://` and `postgresql://` rewritten to `postgresql+psycopg2://`. |
 | `ADMIN_PASSWORD` | **Yes** | `auth.validate_auth_config()` at startup; `_get_admin_password()` on login | Shared staff password (plain text compare via `secrets.compare_digest`). |
 | `JWT_SECRET_KEY` | **Yes** | startup + each token op | Must be ≥32 chars else `RuntimeError`. |
-| `CORS_ALLOWED_ORIGINS` | No | `main.py` at import (after `load_dotenv`) | Comma list; `*` is ignored; empty → no CORS middleware (same-origin only). |
+| `CORS_ALLOWED_ORIGINS` | No | `main.py` at import (`.env` already loaded) | Comma list; `*` is ignored; empty → no CORS middleware (same-origin only). |
 | `TRUST_PROXY` | No | `auth.client_ip()` per request | `1/true/yes` → rightmost `X-Forwarded-For` entry is used as client IP (for rate limiting). Only use behind exactly one trusted proxy. |
 | `REGISTER_RATE_LIMIT` | No | `auth.py` at import | Registrations per IP per 60 s, default 60; non-integer value crashes startup. |
 
 `PORT`/host are **not** read by app code (supplied to uvicorn/host platform).
 
-**Load-order caveat (I-2):** `main.py` imports `backend.database` and `backend.auth` *before* calling `load_dotenv()`. Therefore `DATABASE_URL` and `REGISTER_RATE_LIMIT` are read before `.env` is loaded; values only in `.env` are **not** seen by those two [UNVERIFIED by running]. Workaround: export them in the shell/host environment, or start with `uvicorn backend.main:app --env-file .env`.
+**`.env` loading (I-2, FIXED 2026-11-03 — see §19):** `.env` is now loaded by `load_dotenv()` in `backend/__init__.py`, which Python executes before any `backend.*` submodule, so `DATABASE_URL` (`database.py`) and `REGISTER_RATE_LIMIT` (`auth.py`) see `.env` values. Precedence: **real environment variables (shell / host platform / `uvicorn --env-file`) win over `.env`** (`override=False`); `.env` only fills variables that are not already set. Defaults are unchanged (`REGISTER_RATE_LIMIT` → 60 when unset or empty; `DATABASE_URL` still required). `.env` is searched upward from the `backend/` folder (python-dotenv `find_dotenv`), i.e. the project root `.env`, independent of the current working directory [verified in simulation only, §19]. `.env` is loaded once per process; `--reload` workers re-import it.
 
 ### 5.2 `.env` template (not in repo; create locally, never commit)
 ```
@@ -364,7 +365,7 @@ pip install -r requirements.txt
 ```bash
 uvicorn backend.main:app --reload --env-file .env
 ```
-(`--env-file` makes `DATABASE_URL` available before `main.py` imports it; see §5.1 caveat.) Then open `http://127.0.0.1:8000/`. Camera access works on `localhost` or HTTPS only (browser rule).
+(`--env-file` is optional now: `.env` is loaded automatically by `backend/__init__.py`; if both are used, variables from `--env-file`/the shell take precedence over `.env`. See §5.1.) Then open `http://127.0.0.1:8000/`. Camera access works on `localhost` or HTTPS only (browser rule).
 
 ### Tests
 **None exist.** Suggested manual smoke test after any change: (1) `/health` → ok; (2) register a guest on `/register`, download QR; (3) log in on `/scanner`, scan once → "Entry allowed", again → "Already used"; (4) `/admin` shows guest, Undo/Enter/Edit/Delete work; (5) Export then Import (Add) a small file; (6) `/settings` save a change and confirm `/register` reflects it.
@@ -382,9 +383,9 @@ uvicorn backend.main:app --reload --env-file .env
 
 | Symptom | Likely cause / action |
 |---|---|
-| Startup `DATABASE_URL environment variable is not set.` | Not exported before import (I-2). Export it or use `--env-file .env`. |
+| Startup `DATABASE_URL environment variable is not set.` | Not set in the host/shell environment **and** not in the project-root `.env` (or the `.env` line is empty/misspelled). Since 2026-11-03 `.env` is read automatically (I-2 fixed). Note: a variable already set in the shell/host (even to an empty string) is **not** overridden by `.env`. |
 | Startup `ADMIN_PASSWORD environment variable is not set.` / `JWT_SECRET_KEY must be set … at least 32 characters` | Set in `.env`/host env (§5). |
-| Startup `ValueError` near `REGISTER_RATE_LIMIT` | Value is not an integer. |
+| Startup `ValueError` near `REGISTER_RATE_LIMIT` | Value is not an integer (an empty value falls back to 60). |
 | DB driver errors | Ensure `psycopg2-binary` installed and URL is PostgreSQL; code forces `postgresql+psycopg2`. |
 | Login always "isn't right" | Wrong `ADMIN_PASSWORD`; also shown for 429/500 (I-11). After 10 failures wait up to 5 min (per IP). |
 | Constantly returned to login | JWT expired (8 h), `JWT_SECRET_KEY` changed/restarted with a different value, or sessionStorage cleared; any 401 clears the token. |
@@ -405,7 +406,7 @@ uvicorn backend.main:app --reload --env-file .env
 | ID | Issue | Where |
 |---|---|---|
 | I-1 | **FIXED 2026-11-03** — see §18. Middleware exempted `"/import"` instead of `/import-json`, so imports were capped at ~1 MB. Remaining limitation: the cap relies on the `Content-Length` header; requests without it (chunked) are not size-checked by the middleware (pre-existing, applies to all routes). | `main.py` L225–L237 |
-| I-2 | `load_dotenv()` runs after `backend.database`/`backend.auth` are imported; `DATABASE_URL` and `REGISTER_RATE_LIMIT` ignore `.env` [UNVERIFIED]. | `main.py` imports vs L41 |
+| I-2 | **FIXED 2026-11-03** — see §19. `load_dotenv()` ran after `backend.database`/`backend.auth` were imported, so `DATABASE_URL` and `REGISTER_RATE_LIMIT` ignored `.env`. Now loaded in `backend/__init__.py`. Remaining limitation: verified only with stubbed dependencies, not by starting the real app. | `backend/__init__.py`, formerly `main.py` L41 |
 | I-3 | WhatsApp phone cleanup regex is `/\\D/g` (matches a literal backslash + `D`), so non-digits are **not** stripped; only plain digit strings work. Also hard-codes India country code `91` for 10-digit numbers. | `script.js` ~L1222 (`rawPhone … .replace`) |
 | I-4 | `@app.exception_handler(404)` returns the HTML 404 page for **all** 404s, including API `HTTPException(404)` (`/qr/<bad>`, student not found). | `main.py` L246 |
 | I-5 | Import REPLACE writes `app_settings` from the file **without** `clean_settings`; explicit `id`s from the file are inserted, which on PostgreSQL does not advance the id sequence (possible later duplicate-key errors) [UNVERIFIED]. ADD mode does not enforce custom-field uniqueness. | `import_json_backup` |
@@ -429,7 +430,7 @@ uvicorn backend.main:app --reload --env-file .env
 
 ## 15. UNKNOWNS / UNVERIFIED
 
-- Whether the app starts and every flow works (never executed; the 2026-11-03 fix was also not run — see §18).
+- Whether the app starts and every flow works (never executed; the 2026-11-03 fixes were also not run against the real app — see §18 and §19).
 - Python version(s) supported; resolved Pydantic/FastAPI/SQLAlchemy versions in use.
 - Hosting provider, start command, number of workers, domain/HTTPS setup, DB provider and backup policy.
 - Whether SQLite works (code has branches; no evidence of use).
@@ -462,6 +463,7 @@ Deliberately **kept** (behaviour/compatibility, see I-13): legacy DB columns, le
 |---|---|---|---|
 | 2026-10-17 | Initial creation of PROJECT_CONTEXT.md from full static analysis; removed verified dead code (§16) | PROJECT_CONTEXT.md, backend/main.py, backend/models.py, backend/utils.py, frontend/register.html, frontend/script.js, frontend/style.css | all |
 | 2026-11-03 | Fixed JSON import size-limit route mismatch (I-1), §18 | backend/main.py, PROJECT_CONTEXT.md | §5.3, §6, §7, §13, §14, §15, §17, §18 |
+| 2026-11-03 | Fixed `.env` loading order (I-2), §19: `load_dotenv()` moved from `main.py` to `backend/__init__.py` | backend/__init__.py, backend/main.py, PROJECT_CONTEXT.md | header note, §2, §3, §5.1, §12, §13, §14, §15, §17, §19 |
 
 ---
 
@@ -494,3 +496,44 @@ Deliberately **kept** (behaviour/compatibility, see I-13): legacy DB columns, le
 - A file between 25 MiB and ~26 MiB passes the middleware and is rejected by the handler (still 413). Whole file is held in memory and parsed (`json.loads`), so ~25 MB imports use noticeably more RAM on small hosts.
 - Hosting-platform/proxy body limits (e.g. nginx default 1 MB) are outside the app and may still block large uploads [UNVERIFIED].
 - To verify: run the app (§12) and POST files of ~10 KB, ~5 MB, ~26 MB to `/import-json` with a valid Bearer token; confirm 200, 200, 413, and that e.g. a >1 MB POST to `/register` returns 413.
+
+---
+
+## 19. BUG FIX RECORD — `.env` loading order (2026-11-03)
+
+**Bug (I-2):** values for `DATABASE_URL` and `REGISTER_RATE_LIMIT` placed only in `.env` were ignored (a missing `DATABASE_URL` aborted startup with `RuntimeError`; `REGISTER_RATE_LIMIT` silently stayed at the default 60).
+
+**Root cause:** `backend/main.py` imported `backend.auth` and `backend.database` at the top and only called `load_dotenv()` afterwards. Both modules read the environment at **import time** (`database.py`: `DATABASE_URL = os.getenv(...)`; `auth.py`: `register_limiter = AttemptLimiter(limit=int(os.getenv("REGISTER_RATE_LIMIT", "60") ...))`), so `.env` was not loaded yet. Other variables (`ADMIN_PASSWORD`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `TRUST_PROXY`) happened to work because they are read later or after `load_dotenv()`.
+
+**Fix:**
+- `backend/__init__.py`: now calls `load_dotenv()` (default arguments). A package `__init__` executes before any `backend.*` submodule, so `.env` is loaded first regardless of import order or entry point (`uvicorn backend.main:app`, tests, scripts importing `backend.database`).
+- `backend/main.py`: removed `from dotenv import load_dotenv` and the old `load_dotenv()` call (single load point, no duplicate logic). Nothing else changed; `validate_auth_config()` still runs at the same place.
+- `database.py` and `auth.py` were **not** modified; defaults (`REGISTER_RATE_LIMIT` = 60, `DATABASE_URL` required, `postgres(ql)://` rewrite) are unchanged.
+- Precedence: `override=False` (python-dotenv default) → existing environment variables (shell, hosting platform, `uvicorn --env-file`) are never overwritten; `.env` only supplies variables that are not set.
+
+**Modified files:** `backend/__init__.py`, `backend/main.py`, `PROJECT_CONTEXT.md`.
+
+**Tests performed** (environment: Python 3.12.3, python-dotenv 1.2.2 real; **FastAPI, SQLAlchemy, python-jose, uvicorn, psycopg2 could not be installed — no network — so they were replaced by throwaway stub modules**; the real, unmodified `backend/database.py` and `backend/auth.py` were imported and the `create_engine` URL and `register_limiter.limit` were inspected; run with a clean environment via `env -i`):
+
+| # | Scenario | Result |
+|---|---|---|
+| A | ORIGINAL code, values only in `.env` | bug reproduced: `RuntimeError: DATABASE_URL environment variable is not set.` |
+| B | FIXED, values only in `.env`, cwd = project root and cwd = `/tmp` | PASSED: engine URL `postgresql+psycopg2://envuser:…`, rate limit 7, `ADMIN_PASSWORD` from `.env` |
+| C | FIXED, values only in shell env (`postgres://…`), no `.env` | PASSED: URL rewritten to `postgresql+psycopg2://shelluser:…`, rate limit 15 |
+| D | FIXED, shell and `.env` both set with different values | PASSED: shell values win (not overwritten) |
+| D2 | FIXED, shell sets only `DATABASE_URL`, `.env` sets the rest | PASSED: `DATABASE_URL` from shell, others from `.env` |
+| E | FIXED, nothing set anywhere | PASSED: still `RuntimeError` (required-variable behaviour preserved) |
+| F | FIXED, `REGISTER_RATE_LIMIT` absent | PASSED: default 60 |
+| G | FIXED, `.env` has empty `REGISTER_RATE_LIMIT=` | PASSED: falls back to 60 (existing `or "60"` logic) |
+| — | `python -m py_compile backend/*.py` | PASSED |
+| — | Starting the real app (`uvicorn backend.main:app`) against PostgreSQL | **NOT TESTED** (dependencies and PostgreSQL unavailable) |
+| — | Importing the real `backend.main` (routes, middleware, `create_all`, `ensure_database_schema`) | **NOT TESTED** |
+| — | `uvicorn --env-file .env` combined with the fix | **NOT TESTED** (reasoning only: it sets real env vars, which `load_dotenv()` does not override) |
+| — | Behaviour on a real hosting platform (Render etc.) | **NOT TESTED** |
+
+**Remaining limitations:**
+- Real startup and every HTTP flow are **NOT TESTED**; the tests above use stubbed third-party packages.
+- `.env` is discovered by `find_dotenv()` walking up from `backend/`; a `.env` placed somewhere other than the project root or one of its parent folders is not found. A parent-folder `.env` outside the project would also be picked up.
+- A variable that is already set in the environment to an empty string blocks the same-named `.env` value (standard `override=False` behaviour).
+- `.env` is loaded as a side effect of importing the `backend` package; code that imports `backend` in a context where loading `.env` is undesirable (e.g. future unit tests) must set/clear the environment itself.
+- `python-dotenv` is now imported by `backend/__init__.py`, so it must be installed wherever any `backend.*` module is imported (already in `requirements.txt`).
