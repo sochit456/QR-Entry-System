@@ -222,14 +222,20 @@ if _cors_origins:
         allow_headers=["Authorization", "Content-Type"],
     )
 
-MAX_BODY_BYTES = 1_000_000  # /import has its own 25 MB limit below
+MAX_BODY_BYTES = 1_000_000  # default cap for every POST/PUT/PATCH request body
+IMPORT_JSON_PATH = "/import-json"
+MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024  # JSON import file limit (enforced in import_json_backup)
+# Multipart envelope (boundaries, headers, the "mode" field) adds a little on top of the file.
+MAX_IMPORT_BODY_BYTES = MAX_IMPORT_FILE_BYTES + MAX_BODY_BYTES
 
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    if request.method in ("POST", "PUT", "PATCH") and request.url.path != "/import":
+    if request.method in ("POST", "PUT", "PATCH"):
+        # Only the JSON import route gets the larger cap; all other routes keep 1 MB.
+        limit = MAX_IMPORT_BODY_BYTES if request.url.path == IMPORT_JSON_PATH else MAX_BODY_BYTES
         length = request.headers.get("content-length", "")
-        if length.isdigit() and int(length) > MAX_BODY_BYTES:
+        if length.isdigit() and int(length) > limit:
             return JSONResponse({"detail": "Request body too large."}, status_code=413)
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -583,7 +589,7 @@ async def import_json_backup(
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="The JSON file is empty.")
-    if len(raw) > 25 * 1024 * 1024:
+    if len(raw) > MAX_IMPORT_FILE_BYTES:
         raise HTTPException(status_code=413, detail="JSON files must be smaller than 25 MB.")
     try:
         backup = json.loads(raw.decode("utf-8-sig"))
