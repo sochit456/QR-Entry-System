@@ -33,26 +33,28 @@ A **FastAPI + PostgreSQL/SQLite** web application for managing student registrat
 ## 📁 Project Structure
 
 ```text
-QR-Entry-System/
-├── README.md
+QR-ENTRY-SYSTEM/
+├── PROJECT_CONTEXT.md        # this file
 ├── requirements.txt
-├── .gitignore
+├── .gitignore                # .env, __pycache__, venvs, *.db, *.sqlite3, build artefacts, OS files
 ├── backend/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   └── utils.py
-└── frontend/
-    ├── index.html
-    ├── scanner.html
-    ├── admin.html
-    ├── settings.html
-    ├── 404.html
-    ├── script.js
-    ├── style.css
-    └── logo.png
+│   ├── __init__.py           # docstring + load_dotenv() (runs before any backend submodule is imported)
+│   ├── main.py               # app, routes, settings logic, validation, import/export, schema patching
+│   ├── auth.py               # admin password check, JWT, bearer dependency, rate limiter, client IP
+│   ├── database.py           # engine, SessionLocal, Base, get_db
+│   ├── models.py             # Student, AppSettings
+│   ├── schemas.py            # Pydantic request/response models
+│   └── utils.py              # token generation/validation, QR PNG generation
+└── frontend/                 # served at /static/* and via explicit page routes
+    ├── index.html            # Home (marketing/landing, data-page="home")
+    ├── register.html         # Public registration (data-page="registration")
+    ├── scanner.html          # Staff QR scanner (data-page="scanner", protected)
+    ├── admin.html            # Staff dashboard (data-page="admin", protected)
+    ├── settings.html         # Staff settings (data-page="settings", protected)
+    ├── 404.html              # Custom not-found page (data-page="notfound")
+    ├── script.js             # ALL frontend logic
+    ├── style.css             # ALL styling (light/dark via html[data-theme])
+    └── logo.png              # 500×500 RGBA default logo (/static/logo.png)
 ```
 
 ## 📄 Pages
