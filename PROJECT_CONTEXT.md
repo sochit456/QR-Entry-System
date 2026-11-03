@@ -171,7 +171,7 @@ Generate a secret: `python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ### 5.3 Security-related built-ins
 - JWT: HS256, `sub="admin"`, lifetime 8 h (`JWT_EXPIRES_MINUTES`), sent as `Authorization: Bearer`.
-- Middleware (`security_middleware`, `main.py` L228): rejects POST/PUT/PATCH with `Content-Length` > 1,000,000 bytes (413) — see I-1; adds `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'`.
+- Middleware (`security_middleware`, `main.py` ~L231): rejects POST/PUT/PATCH with `Content-Length` > `MAX_BODY_BYTES` (1,000,000) with 413; **`/import-json` only** uses `MAX_IMPORT_BODY_BYTES` (25 MiB + 1,000,000 envelope allowance) — I-1 fixed 2026-11-03. The handler additionally rejects files > `MAX_IMPORT_FILE_BYTES` (25 MiB) with 413; adds `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'`.
 - Rate limits (in memory, per process): login 10 **failed** attempts / 300 s / IP (→429 + `Retry-After`); register `REGISTER_RATE_LIMIT` / 60 s / IP.
 
 ---
@@ -199,7 +199,7 @@ Auth column: **Public** = no auth; **Admin** = `Depends(require_admin)` (Bearer 
 | POST `/reset-entry/{student_id}` | Admin | `reset_entry` L496 | – | `{message, entry_at:null}` | 404 |
 | GET `/students` | Admin | `get_students` L520 | – | list of student objects, newest first (includes `token`, `extra_data`) | no pagination |
 | GET `/export-json` | Admin | `export_json_backup` L528 | – | download `qr_entry_system_backup.json` | format below |
-| POST `/import-json` | Admin | `import_json_backup` L567 | multipart: `file` (.json), `mode` = `add`\|`replace` | `{message, imported, skipped, settings_imported}` | 400 invalid; 413 (see I-1) |
+| POST `/import-json` | Admin | `import_json_backup` L567 | multipart: `file` (.json), `mode` = `add`\|`replace` | `{message, imported, skipped, settings_imported}` | 400 invalid; 413 if body > ~26 MiB (middleware) or file > 25 MiB (handler) |
 | PUT `/student/{student_id}` | Admin | `edit_student` L731 | `{name, extra_data}` | updated student | 400/404/500 |
 | DELETE `/student/{student_id}` | Admin | `delete_student` L815 | – | `{message}` | 404/500 |
 | GET `/static/*` | Public | `StaticFiles` mount L242 | – | everything in `frontend/` | |
@@ -223,7 +223,7 @@ FastAPI's automatic `/docs`, `/redoc`, `/openapi.json` are not disabled in code 
 | `DEFAULT_SETTINGS` | main.py L91 | settings defaults | `get_settings`, `clean_settings` |
 | `get_settings(db)` | main.py L108 | load row id=1 (create if missing), merge over defaults, force `field_settings={}`, ensure `search_field` | `public_config`, `read_settings`, `_register_student`, `edit_student`, export |
 | `clean_settings(payload)` | main.py L121 | validate/normalise all settings incl. custom fields, logo URL rule (local `/path` or http(s) URL), hex colour, search-field rules | `update_settings` |
-| `security_middleware` | main.py L228 | body-size guard + security headers | every request |
+| `security_middleware` | main.py ~L231 | body-size guard (1 MB default, larger cap for `/import-json` only) + security headers | every request |
 | `custom_404_handler` | main.py L246 | serves `404.html` | all 404s |
 | `register_student` / `_register_student` | main.py L331 / L346 | rate limit + process-wide `_register_lock`; validate against `custom_fields`; generate unique token; insert | `/register` |
 | `verify_qr` | main.py L426 | atomic check-in by token | `/verify` |
@@ -389,7 +389,7 @@ uvicorn backend.main:app --reload --env-file .env
 | Login always "isn't right" | Wrong `ADMIN_PASSWORD`; also shown for 429/500 (I-11). After 10 failures wait up to 5 min (per IP). |
 | Constantly returned to login | JWT expired (8 h), `JWT_SECRET_KEY` changed/restarted with a different value, or sessionStorage cleared; any 401 clears the token. |
 | Behind a proxy, everyone rate-limited together | Proxy IP is used; set `TRUST_PROXY=1` (single trusted proxy). |
-| Import fails with "Request body too large" | Middleware 1 MB cap applies to `/import-json` (I-1). |
+| Import fails with "Request body too large" | Request body > ~26 MiB (middleware cap for `/import-json`). Files 25 MiB–~26 MiB get "JSON files must be smaller than 25 MB." from the handler. (Before 2026-11-03 the cap was 1 MB, I-1.) |
 | Scanner stuck on "Starting camera" | `html5-qrcode` CDN blocked/offline (poll loop has no timeout, I-12) or camera permission denied / non-HTTPS. |
 | API call returns generic "Something went wrong" on a missing record | API 404s are returned as HTML by the custom 404 handler (I-4). |
 | "no valid phone number to share to" | See WhatsApp regex bug (I-3) — numbers containing spaces, `+`, `-` fail. |
@@ -404,7 +404,7 @@ uvicorn backend.main:app --reload --env-file .env
 
 | ID | Issue | Where |
 |---|---|---|
-| I-1 | Body-size middleware exempts path `"/import"`, but the route is `/import-json`; so uploads are capped at ~1,000,000 bytes (by `Content-Length`) and the intended 25 MB handler limit is unreachable. Comment on `MAX_BODY_BYTES` is stale. | `main.py` L225–L231 |
+| I-1 | **FIXED 2026-11-03** — see §18. Middleware exempted `"/import"` instead of `/import-json`, so imports were capped at ~1 MB. Remaining limitation: the cap relies on the `Content-Length` header; requests without it (chunked) are not size-checked by the middleware (pre-existing, applies to all routes). | `main.py` L225–L237 |
 | I-2 | `load_dotenv()` runs after `backend.database`/`backend.auth` are imported; `DATABASE_URL` and `REGISTER_RATE_LIMIT` ignore `.env` [UNVERIFIED]. | `main.py` imports vs L41 |
 | I-3 | WhatsApp phone cleanup regex is `/\\D/g` (matches a literal backslash + `D`), so non-digits are **not** stripped; only plain digit strings work. Also hard-codes India country code `91` for 10-digit numbers. | `script.js` ~L1222 (`rawPhone … .replace`) |
 | I-4 | `@app.exception_handler(404)` returns the HTML 404 page for **all** 404s, including API `HTTPException(404)` (`/qr/<bad>`, student not found). | `main.py` L246 |
@@ -429,7 +429,7 @@ uvicorn backend.main:app --reload --env-file .env
 
 ## 15. UNKNOWNS / UNVERIFIED
 
-- Whether the app starts and every flow works (not executed here).
+- Whether the app starts and every flow works (never executed; the 2026-11-03 fix was also not run — see §18).
 - Python version(s) supported; resolved Pydantic/FastAPI/SQLAlchemy versions in use.
 - Hosting provider, start command, number of workers, domain/HTTPS setup, DB provider and backup policy.
 - Whether SQLite works (code has branches; no evidence of use).
@@ -461,3 +461,36 @@ Deliberately **kept** (behaviour/compatibility, see I-13): legacy DB columns, le
 | Date | Change | Files | Sections of this doc updated |
 |---|---|---|---|
 | 2026-10-17 | Initial creation of PROJECT_CONTEXT.md from full static analysis; removed verified dead code (§16) | PROJECT_CONTEXT.md, backend/main.py, backend/models.py, backend/utils.py, frontend/register.html, frontend/script.js, frontend/style.css | all |
+| 2026-11-03 | Fixed JSON import size-limit route mismatch (I-1), §18 | backend/main.py, PROJECT_CONTEXT.md | §5.3, §6, §7, §13, §14, §15, §17, §18 |
+
+---
+
+## 18. BUG FIX RECORD — JSON import size limit (2026-11-03)
+
+**Bug (I-1):** JSON imports were meant to support up to 25 MB, but any import over ~1 MB failed with `413 Request body too large.`
+
+**Root cause:** `security_middleware` skipped the 1 MB `Content-Length` check only for `request.url.path != "/import"`. The real route is `/import-json`, so it never matched the exemption and the 1,000,000-byte cap applied. The handler's own 25 MB check was therefore unreachable for files > 1 MB.
+
+**Fix (`backend/main.py` only):**
+- Added constants `IMPORT_JSON_PATH = "/import-json"`, `MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024`, `MAX_IMPORT_BODY_BYTES = MAX_IMPORT_FILE_BYTES + MAX_BODY_BYTES`.
+- Middleware now selects a limit per request: `MAX_IMPORT_BODY_BYTES` for `/import-json`, `MAX_BODY_BYTES` (1,000,000) for **every other** POST/PUT/PATCH. The check is not removed for the import route; it is a higher cap (25 MiB + 1 MB multipart-envelope allowance), so absurdly large bodies are still rejected early.
+- The handler's file-size check now uses `MAX_IMPORT_FILE_BYTES` (same value, 25 MiB, same 413 message). All other import validation is unchanged.
+- No DB, schema, frontend, or other endpoint changes.
+
+**Tests performed:**
+
+| Test | Result |
+|---|---|
+| `python -m py_compile backend/*.py` | PASSED |
+| Logic simulation: constants extracted from the real source and the limit-selection expression evaluated for sample sizes/paths (`/import-json` 10 KB, 5 MB, 25 MiB+500 B pass middleware; 30 MB rejected; `/import` 5 MB, `/register` 1,000,001 B, `/login` 2 MB, `/api/settings` 1,000,001 B, `/verify` 2 MB rejected; `/register` 999,999 B passes) | PASSED — **this is not an HTTP test** |
+| Import small JSON file via running app | **NOT TESTED** (dependencies could not be installed: no network; no PostgreSQL) |
+| Import JSON > 1 MB and < 25 MB via running app | **NOT TESTED** |
+| Import JSON > 25 MB via running app (expect 413) | **NOT TESTED** |
+| Other endpoints still return 413 above 1 MB via running app | **NOT TESTED** (only the logic simulation above) |
+
+**Remaining limitations:**
+- Middleware relies on the `Content-Length` header; chunked requests without it are not size-checked there (pre-existing, all routes). For `/import-json` the handler check still applies, but only after the body has been read (`await file.read()`).
+- `/import-json` accepts the larger body before `require_admin` runs (FastAPI parses the multipart body in the same step as dependencies), so an unauthenticated client can send up to ~26 MiB to this one route. Previously capped at 1 MB. Consider a reverse-proxy limit or auth check in middleware if this matters.
+- A file between 25 MiB and ~26 MiB passes the middleware and is rejected by the handler (still 413). Whole file is held in memory and parsed (`json.loads`), so ~25 MB imports use noticeably more RAM on small hosts.
+- Hosting-platform/proxy body limits (e.g. nginx default 1 MB) are outside the app and may still block large uploads [UNVERIFIED].
+- To verify: run the app (§12) and POST files of ~10 KB, ~5 MB, ~26 MB to `/import-json` with a valid Bearer token; confirm 200, 200, 413, and that e.g. a >1 MB POST to `/register` returns 413.
