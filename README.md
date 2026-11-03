@@ -34,7 +34,8 @@ A **FastAPI + PostgreSQL/SQLite** web application for managing student registrat
 
 ```text
 QR-ENTRY-SYSTEM/
-├── PROJECT_CONTEXT.md        # this file
+├── README.md
+├── PROJECT_CONTEXT.md
 ├── requirements.txt
 ├── .gitignore                # .env, __pycache__, venvs, *.db, *.sqlite3, build artefacts, OS files
 ├── backend/
