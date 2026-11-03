@@ -150,7 +150,7 @@ https://your-app-name.onrender.com/health
 UptimeRobot will now automatically ping your Render app to help keep it awake.
 
 # Working URL of Project:-
-https://qr-entry-system-a08u.onrender.com
+https://sochit.dpdns.org/
 
 ## Dynamic event settings (Option A)
 
