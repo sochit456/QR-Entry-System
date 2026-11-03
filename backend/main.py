@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
 
-from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -38,7 +37,6 @@ from backend.schemas import (
 )
 from backend.utils import generate_qr_image, generate_token, is_valid_token
 
-load_dotenv()
 validate_auth_config()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
